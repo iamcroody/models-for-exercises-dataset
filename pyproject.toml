@@ -1,0 +1,6 @@
+[project]
+name = "models-for-exercises-dataset"
+version = "0.1.0"
+description = "Fine-tuning experiments on the exercises dataset"
+requires-python = ">=3.11"
+dependencies = []
