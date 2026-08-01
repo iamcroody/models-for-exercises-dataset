@@ -3,5 +3,9 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# Derived from the pinned submodule by a seeded script — regenerate, don't commit
+data/processed/
+outputs/
+
 # Claude Code local settings (do not publish)
 .claude/
