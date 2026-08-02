@@ -359,16 +359,28 @@ def generate_replies(model, tok, records, batch_size=16, show_progress=True):
 
 
 def pick_device_dtype():
-    """bf16 where the GPU supports it, fp16 otherwise.
+    """bf16 where the GPU has bf16 *hardware*, fp16 otherwise.
 
     Colab's free tier hands out a T4 (Turing, sm_75), which has no bf16 units.
-    TRL's SFTConfig defaults bf16=True whenever fp16 is unset, so training
-    there crashes unless precision is chosen from the actual device. Every
-    script and the notebook route through this so local runs and the Colab
-    run differ in precision only, never in code path.
+    TRL's SFTConfig defaults bf16=True whenever fp16 is unset, so precision has
+    to be chosen from the actual device. Every script and the notebook route
+    through this, so a local run and the Colab run differ in precision only,
+    never in code path.
+
+    The obvious check, `torch.cuda.is_bf16_supported()`, is a trap: it returns
+    True on a T4, because it also counts bf16 that torch can *emulate* in
+    software. A Colab run confirmed it — the notebook reported
+    `torch.bfloat16` on a `Tesla T4 (sm_75)`. Emulated bf16 runs, slowly and
+    with no tensor-core path, which is the worst outcome: no crash to tell you
+    it is wrong.
+
+    Compute capability is unambiguous. Hardware bf16 arrived with Ampere
+    (sm_80), so major >= 8 is the real question, and it is what we ask.
     """
     import torch
 
     if not torch.cuda.is_available():
         return "cpu", torch.float32
-    return "cuda", torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+
+    major, _ = torch.cuda.get_device_capability()
+    return "cuda", torch.bfloat16 if major >= 8 else torch.float16
