@@ -1,0 +1,83 @@
+{
+  "n": 121,
+  "json_valid_rate": 1.0,
+  "fields": {
+    "target": {
+      "accuracy": 0.843,
+      "macro_f1": 0.799,
+      "in_label_space_rate": 1.0
+    },
+    "equipment": {
+      "accuracy": 0.9917,
+      "macro_f1": 0.9238,
+      "in_label_space_rate": 1.0
+    }
+  },
+  "joint_accuracy": 0.8347,
+  "derived_body_part_accuracy": 0.9008,
+  "model": "Qwen/Qwen3-1.7B",
+  "adapter": "models/notebook-r16",
+  "split": "val",
+  "examples": [
+    {
+      "name": "lever unilateral row",
+      "gold": {
+        "target": "upper back",
+        "equipment": "leverage machine"
+      },
+      "predicted": {
+        "target": "upper back",
+        "equipment": "leverage machine"
+      },
+      "raw_reply": "{\"target\": \"upper back\", \"equipment\": \"leverage machine\"}",
+      "correct": true,
+      "rarity": 8,
+      "why_shown": "typical correct extraction"
+    },
+    {
+      "name": "exercise ball back extension with arms extended",
+      "gold": {
+        "target": "spine",
+        "equipment": "stability ball"
+      },
+      "predicted": {
+        "target": "spine",
+        "equipment": "stability ball"
+      },
+      "raw_reply": "{\"target\": \"spine\", \"equipment\": \"stability ball\"}",
+      "correct": true,
+      "rarity": 1,
+      "why_shown": "correct on a rare target class"
+    },
+    {
+      "name": "dumbbell incline one arm hammer press",
+      "gold": {
+        "target": "triceps",
+        "equipment": "dumbbell"
+      },
+      "predicted": {
+        "target": "delts",
+        "equipment": "dumbbell"
+      },
+      "raw_reply": "{\"target\": \"delts\", \"equipment\": \"dumbbell\"}",
+      "correct": false,
+      "rarity": 14,
+      "why_shown": "failure case"
+    },
+    {
+      "name": "semi squat jump (male)",
+      "gold": {
+        "target": "cardiovascular system",
+        "equipment": "body weight"
+      },
+      "predicted": {
+        "target": "quads",
+        "equipment": "body weight"
+      },
+      "raw_reply": "{\"target\": \"quads\", \"equipment\": \"body weight\"}",
+      "correct": false,
+      "rarity": 2,
+      "why_shown": "failure on a rare target class"
+    }
+  ]
+}

@@ -14,8 +14,14 @@ exercises, measured honestly against two baselines on a held-out validation set.
 | Same model, **no** fine-tuning | 32.2% | 89.3% | 30.6% |
 | **After LoRA fine-tuning** | **85.1%** | **99.2%** | **84.3%** |
 
-Everything runs end to end on a free Colab T4:
+The whole pipeline is one notebook:
 **[`notebooks/M1_finetuning_qwen3.ipynb`](notebooks/M1_finetuning_qwen3.ipynb)**
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iamcroody/models-for-exercises-dataset/blob/main/notebooks/M1_finetuning_qwen3.ipynb)
+
+It is built for the free Colab T4 and sized for it — 6.7 GB peak against 15 GB available,
+and precision is selected from the device at runtime because the T4 has no bf16 units
+(details under [LoRA configuration](#lora-configuration)). The committed outputs are from a
+local RTX 5060 Ti run; expect roughly 25–30 minutes for training on a T4 rather than 8.
 
 ---
 
@@ -230,7 +236,16 @@ uv run python scripts/05_eval_finetuned.py     # comparison table
 ```
 
 The trained adapter is committed (`models/r16-all-linear`, 34 MB), so
-`05_eval_finetuned.py` reproduces the results table without retraining.
+`05_eval_finetuned.py` reproduces the results table exactly, without retraining.
+
+**Retraining will not reproduce it exactly.** Everything seedable is seeded (`seed = 42`
+for data, shuffling and init), but CUDA matmul and gradient-checkpointing kernels are not
+bitwise deterministic, so two runs of an identical config land on slightly different
+weights. Re-running the notebook end to end gave **84.3%** target accuracy where the
+committed run gave 85.1% — one validation record out of 121. Numbers in this README come
+from the committed adapter; treat differences of a point as run-to-run noise, which is also
+why the ablation only claims the 7.4-point gaps and explicitly discounts the 0.004
+macro-F1 one.
 
 `data/processed/` is gitignored — it is fully derived from the pinned submodule by a seeded
 script, so it is regenerated rather than committed.
