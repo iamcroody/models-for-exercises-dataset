@@ -1,0 +1,32 @@
+{
+  "base_model": "Qwen/Qwen3-1.7B",
+  "run_name": "r16-all-linear",
+  "lora": {
+    "r": 16,
+    "alpha": 32,
+    "dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  },
+  "epochs": 3,
+  "learning_rate": 0.0001,
+  "effective_batch_size": 16,
+  "max_length": 512,
+  "seed": 42,
+  "precision": "bf16",
+  "trainable_params": 17432576,
+  "train_runtime_s": 470.5,
+  "final_train_loss": 0.1121,
+  "eval_loss_per_epoch": [
+    0.0403,
+    0.03,
+    0.0279
+  ]
+}

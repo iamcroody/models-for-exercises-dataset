@@ -8,9 +8,14 @@ __pycache__/
 data/processed/
 
 # Training checkpoints and optimizer state — large and disposable.
-# The trained LoRA adapter is NOT here: it lives in models/ and is committed,
-# so the reported numbers can be reproduced without a GPU.
 outputs/
 
-# Claude Code local settings (do not publish)
+# Trained adapters. The main run is committed (34 MB, fp16) so the reported
+# numbers can be reproduced without a GPU. Ablation adapters are not: their
+# results are in reports/ and 04_train_lora.py regenerates them.
+models/*
+!models/r16-all-linear/
+
+# Editor state (do not publish)
 .claude/
+.vscode/
