@@ -1,83 +1,131 @@
 """Rule-based baseline for structured field extraction.
 
-Establishes the numbers a fine-tuned model has to beat. Two naive strategies
-per field:
+Establishes the numbers the fine-tuned model has to beat. Two naive strategies:
 
   majority   always predict the most frequent value
   substring  predict the field value that appears literally in the exercise
              name, falling back to the majority class
 
+Both are *fitted on train and scored on the evaluation split*, exactly like
+the model. Fitting them on the whole catalog — which is what this script used
+to do — leaks the evaluation set into the baseline and makes the comparison
+meaningless in whichever direction happens to be convenient.
+
+Predictions are scored through exlib.score_predictions, the same function the
+zero-shot and fine-tuned evaluations use, so every row of the results table is
+computed by identical code.
+
 Run:
     uv run python scripts/01_baseline.py
+    uv run python scripts/01_baseline.py --split test
 """
 
-import json
+import argparse
+import sys
 from collections import Counter
 from pathlib import Path
 
-DATASET = Path("data/exercises-dataset/data/exercises.json")
-REPORT = Path("reports/baseline.json")
-FIELDS = ["target", "body_part", "equipment"]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import exlib
 
 
-def majority(records, field):
-    """Always predict the most frequent value."""
-    top = Counter(r[field] for r in records).most_common(1)[0][0]
-    correct = sum(1 for r in records if r[field] == top)
-    return correct / len(records), top
+def fit_majority(train, field):
+    """Most frequent value in train."""
+    return Counter(r[field] for r in train).most_common(1)[0][0]
 
 
-def substring(records, field):
-    """Predict the field value literally present in the name, else majority."""
-    # Longest first so "lower legs" wins over "legs".
-    values = sorted({r[field] for r in records}, key=len, reverse=True)
-    fallback = Counter(r[field] for r in records).most_common(1)[0][0]
+def fit_substring_vocab(train, field):
+    """Label values to scan for, longest first.
 
-    correct = 0
+    Longest first so "lower legs" wins over "legs" and "ez barbell" wins over
+    "barbell" — the shorter value is a substring of the longer one, and
+    matching it first would silently mislabel every long-form record.
+    """
+    return sorted({r[field] for r in train}, key=len, reverse=True)
+
+
+def predict_majority(records, majorities):
+    return [dict(majorities) for _ in records]
+
+
+def predict_substring(records, vocabs, majorities):
+    preds = []
     for r in records:
         name = r["name"].lower()
-        pred = next((v for v in values if v.lower() in name), fallback)
-        correct += pred == r[field]
-    return correct / len(records)
+        preds.append(
+            {
+                field: next(
+                    (v for v in vocabs[field] if v.lower() in name), majorities[field]
+                )
+                for field in exlib.PREDICT_FIELDS
+            }
+        )
+    return preds
 
 
 def leakage(records, field):
     """Share of records whose gold value appears verbatim in the name.
 
-    High leakage means the field is readable off the string and a model
-    adds little over a regex.
+    High leakage means the field is readable straight off the string, so a
+    model that beats the majority class there has proved very little — the
+    substring rule is the bar that matters.
     """
-    hits = sum(1 for r in records if r[field].lower() in r["name"].lower())
-    return hits / len(records)
+    return sum(r[field].lower() in r["name"].lower() for r in records) / len(records)
 
 
 def main():
-    records = json.loads(DATASET.read_text())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--split",
+        choices=["val", "test"],
+        default="val",
+        help="split to score on; strategies are always fitted on train (default: val)",
+    )
+    args = parser.parse_args()
 
-    report = {"n_records": len(records), "fields": {}}
-    for field in FIELDS:
-        maj_acc, maj_val = majority(records, field)
-        report["fields"][field] = {
-            "n_classes": len({r[field] for r in records}),
-            "leakage": round(leakage(records, field), 4),
-            "majority_accuracy": round(maj_acc, 4),
-            "majority_class": maj_val,
-            "substring_accuracy": round(substring(records, field), 4),
-        }
+    meta = exlib.load_meta()
+    label_space = meta["label_space"]
+    body_part_map = meta["body_part_map"]
 
-    REPORT.parent.mkdir(exist_ok=True)
-    REPORT.write_text(json.dumps(report, indent=2) + "\n")
+    train = exlib.load_split("train")
+    evalset = exlib.load_split(args.split)
 
-    print(f"{len(records)} records\n")
-    header = f"{'field':<12} {'classes':>7} {'leakage':>8} {'majority':>9} {'substring':>10}"
+    majorities = {f: fit_majority(train, f) for f in exlib.PREDICT_FIELDS}
+    vocabs = {f: fit_substring_vocab(train, f) for f in exlib.PREDICT_FIELDS}
+
+    strategies = {
+        "majority": predict_majority(evalset, majorities),
+        "substring": predict_substring(evalset, vocabs, majorities),
+    }
+
+    report = {
+        "split": args.split,
+        "fitted_on": "train",
+        "n_train": len(train),
+        "majority_class": majorities,
+        "leakage": {f: round(leakage(evalset, f), 4) for f in exlib.PREDICT_FIELDS},
+        "strategies": {
+            name: exlib.score_predictions(preds, evalset, label_space, body_part_map)
+            for name, preds in strategies.items()
+        },
+    }
+
+    path = exlib.write_report("baseline", report)
+
+    print(f"fitted on train ({len(train)}), scored on {args.split} ({len(evalset)})\n")
+    header = f"{'strategy':<10} {'field':<11} {'accuracy':>9} {'macro-F1':>9} {'leakage':>8}"
     print(header)
     print("-" * len(header))
-    for field, s in report["fields"].items():
-        print(
-            f"{field:<12} {s['n_classes']:>7} {s['leakage']:>7.1%} "
-            f"{s['majority_accuracy']:>8.1%} {s['substring_accuracy']:>9.1%}"
-        )
-    print(f"\nwrote {REPORT}")
+    for name, scores in report["strategies"].items():
+        for field in exlib.PREDICT_FIELDS:
+            s = scores["fields"][field]
+            print(
+                f"{name:<10} {field:<11} {s['accuracy']:>8.1%} "
+                f"{s['macro_f1']:>9.3f} {report['leakage'][field]:>7.1%}"
+            )
+        print(f"{'':<10} {'joint':<11} {scores['joint_accuracy']:>8.1%}")
+    print(f"\nwrote {path}")
 
 
 if __name__ == "__main__":

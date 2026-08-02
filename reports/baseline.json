@@ -1,26 +1,51 @@
 {
-  "n_records": 1324,
-  "fields": {
-    "target": {
-      "n_classes": 19,
-      "leakage": 0.0665,
-      "majority_accuracy": 0.1276,
-      "majority_class": "abs",
-      "substring_accuracy": 0.1934
+  "split": "val",
+  "fitted_on": "train",
+  "n_train": 1081,
+  "majority_class": {
+    "target": "abs",
+    "equipment": "body weight"
+  },
+  "leakage": {
+    "target": 0.0579,
+    "equipment": 0.5702
+  },
+  "strategies": {
+    "majority": {
+      "n": 121,
+      "json_valid_rate": 1.0,
+      "fields": {
+        "target": {
+          "accuracy": 0.1322,
+          "macro_f1": 0.0156,
+          "in_label_space_rate": 1.0
+        },
+        "equipment": {
+          "accuracy": 0.3058,
+          "macro_f1": 0.0312,
+          "in_label_space_rate": 1.0
+        }
+      },
+      "joint_accuracy": 0.0909,
+      "derived_body_part_accuracy": 0.1322
     },
-    "body_part": {
-      "n_classes": 10,
-      "leakage": 0.0415,
-      "majority_accuracy": 0.2205,
-      "majority_class": "upper arms",
-      "substring_accuracy": 0.2508
-    },
-    "equipment": {
-      "n_classes": 28,
-      "leakage": 0.6005,
-      "majority_accuracy": 0.2455,
-      "majority_class": "body weight",
-      "substring_accuracy": 0.8301
+    "substring": {
+      "n": 121,
+      "json_valid_rate": 1.0,
+      "fields": {
+        "target": {
+          "accuracy": 0.1818,
+          "macro_f1": 0.0638,
+          "in_label_space_rate": 1.0
+        },
+        "equipment": {
+          "accuracy": 0.876,
+          "macro_f1": 0.7834,
+          "in_label_space_rate": 1.0
+        }
+      },
+      "joint_accuracy": 0.1818,
+      "derived_body_part_accuracy": 0.1818
     }
   }
 }
