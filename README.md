@@ -152,9 +152,9 @@ evaluation is not run on a set already used to make decisions here.
 
 | Hyperparameter | Value | Why |
 |---|---|---|
-| `r` | 16 | 1081 examples over a 19+28 label space is a small, narrow target. The job is constraining output to a closed vocabulary, not installing knowledge — that needs little capacity, and higher rank mostly buys overfitting. Tested below rather than asserted. |
+| `r` | 16 | Chosen by measurement, not by prior — see the ablation below, where our initial reasoning turned out to be wrong. |
 | `lora_alpha` | 32 | Holds the conventional `alpha = 2r`, keeping the effective scale `alpha/r` at 2.0 so changing `r` does not silently change update magnitude too. |
-| `target_modules` | `q,k,v,o,gate,up,down_proj` | Attention **and** MLP. Mapping "cable incline pushdown" → `{lats, cable}` is lexical-semantic, and that association lives largely in the MLP blocks; attention-only adapters reweight what the model attends to but not what it knows a term means. |
+| `target_modules` | `q,k,v,o,gate,up,down_proj` | All seven linear projections, attention **and** MLP. Our reason for including the MLP did not survive contact with the ablation — see below. |
 | `lora_dropout` | 0.05 | Light regularisation on a small dataset. |
 | `learning_rate` | 1e-4 | TRL's documented adapter rate, ~5× a full fine-tune's, since only the freshly-initialised low-rank matrices learn. |
 | epochs / batch | 3 / 16 effective | Eval loss 0.0403 → 0.0300 → 0.0279, still falling at epoch 3 — not yet overfitting. |
@@ -168,7 +168,45 @@ unset, and Colab's T4 is Turing with no bf16 units — a hard-coded config crash
 the GPU this is required to run on. FlashAttention-2 is left off for the same reason
 (Ampere+ only).
 
-<!-- ABLATION -->
+### Ablation — and where our reasoning was wrong
+
+Three runs, identical apart from the variable under test, `alpha = 2r` throughout so
+changing `r` does not also change the update scale. Same val split, same scoring.
+
+| Config | Trainable | target acc | target macro-F1 | equip acc | joint | eval loss | time |
+|---|---|---|---|---|---|---|---|
+| r=8, all linear | 8.7M | 77.7% | 0.683 | 99.2% | 76.9% | 0.0319 | 485s |
+| **r=16, all linear** | 17.4M | **85.1%** | **0.814** | 99.2% | **84.3%** | **0.0279** | 470s |
+| r=16, attention only | 6.4M | 77.7% | 0.679 | 98.4% | 76.0% | 0.0348 | 404s |
+
+We went in with two predictions. **Both were wrong, and the useful part of this experiment
+is how.**
+
+**Prediction 1: `r=8` would be enough, and `r=16` risked overfitting.** The reasoning was
+that 1081 examples over a closed label space is a narrow target needing little capacity.
+Wrong — `r=8` *underfits*, losing 7.4 points of target accuracy and 0.13 macro-F1. Nothing
+in any run showed overfitting: eval loss was still falling at epoch 3 in all three.
+
+**Prediction 2: the MLP blocks were doing the work,** because mapping "cable incline
+pushdown" → `{lats, cable}` is lexical-semantic. The attention-only run does lose 7.4
+points, which looks like confirmation — until you notice it has **fewer** trainable
+parameters (6.4M) than the r=8 all-linear run (8.7M), and the two score *identically* at
+77.7%. Placement is confounded with capacity, and once you line the budgets up the
+placement effect disappears.
+
+**What the data actually supports:** at this scale, the total number of adapter parameters
+drove the result, not where they were placed. Two configurations near 6–9M land on 77.7%
+whichever modules they adapt; the 17.4M configuration reaches 85.1%. Ranking by eval loss
+agrees (0.0279 < 0.0319 < 0.0348).
+
+So `r=16` on all linear layers is kept because it measurably won, not because our story
+about MLPs was right. Testing the claim was worth more than the claim.
+
+**What this ablation cannot tell us:** a properly controlled placement test needs
+parameter-matched configurations (roughly `r=16` attention-only against `r=6` all-linear),
+which we did not run. And with n=121, one record is 0.8 points — the 7.4-point gaps are
+real, but the 0.004 macro-F1 difference between the two 77.7% runs is noise.
+
 
 ## Reproducing
 

@@ -230,6 +230,7 @@ def score_predictions(preds, golds, label_space, body_part_map):
         per_field_correct.append(correct)
 
         labels = sorted(set(y_true))
+        valid = set(label_space[field])
         report["fields"][field] = {
             "accuracy": round(sum(correct) / n, 4),
             "macro_f1": round(
@@ -239,9 +240,7 @@ def score_predictions(preds, golds, label_space, body_part_map):
             # How often the model answered with a value that exists in our
             # label space at all — separates "wrong class" from "invented a
             # class we never showed it".
-            "in_label_space_rate": round(
-                sum(p in set(label_space[field]) for p in y_pred) / n, 4
-            ),
+            "in_label_space_rate": round(sum(p in valid for p in y_pred) / n, 4),
         }
 
     report["joint_accuracy"] = round(

@@ -1,0 +1,115 @@
+{
+  "n": 121,
+  "json_valid_rate": 1.0,
+  "fields": {
+    "target": {
+      "accuracy": 0.7769,
+      "macro_f1": 0.6833,
+      "in_label_space_rate": 1.0
+    },
+    "equipment": {
+      "accuracy": 0.9917,
+      "macro_f1": 0.9238,
+      "in_label_space_rate": 1.0
+    }
+  },
+  "joint_accuracy": 0.7686,
+  "derived_body_part_accuracy": 0.8678,
+  "model": "Qwen/Qwen3-1.7B",
+  "adapter": "models/r8-all-linear",
+  "split": "val",
+  "examples": [
+    {
+      "name": "lever unilateral row",
+      "gold": {
+        "target": "upper back",
+        "equipment": "leverage machine"
+      },
+      "predicted": {
+        "target": "upper back",
+        "equipment": "leverage machine"
+      },
+      "raw_reply": "{\"target\": \"upper back\", \"equipment\": \"leverage machine\"}",
+      "correct": true,
+      "rarity": 8,
+      "why_shown": "typical correct extraction"
+    },
+    {
+      "name": "exercise ball back extension with arms extended",
+      "gold": {
+        "target": "spine",
+        "equipment": "stability ball"
+      },
+      "predicted": {
+        "target": "spine",
+        "equipment": "stability ball"
+      },
+      "raw_reply": "{\"target\": \"spine\", \"equipment\": \"stability ball\"}",
+      "correct": true,
+      "rarity": 1,
+      "why_shown": "correct on a rare target class"
+    },
+    {
+      "name": "smith hack squat",
+      "gold": {
+        "target": "glutes",
+        "equipment": "smith machine"
+      },
+      "predicted": {
+        "target": "quads",
+        "equipment": "smith machine"
+      },
+      "raw_reply": "{\"target\": \"quads\", \"equipment\": \"smith machine\"}",
+      "correct": false,
+      "rarity": 13,
+      "why_shown": "failure case"
+    },
+    {
+      "name": "dumbbell decline shrug",
+      "gold": {
+        "target": "traps",
+        "equipment": "dumbbell"
+      },
+      "predicted": {
+        "target": "pectorals",
+        "equipment": "dumbbell"
+      },
+      "raw_reply": "{\"target\": \"pectorals\", \"equipment\": \"dumbbell\"}",
+      "correct": false,
+      "rarity": 1,
+      "why_shown": "failure on a rare target class"
+    }
+  ],
+  "training": {
+    "base_model": "Qwen/Qwen3-1.7B",
+    "run_name": "r8-all-linear",
+    "lora": {
+      "r": 8,
+      "alpha": 16,
+      "dropout": 0.05,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+      ]
+    },
+    "epochs": 3,
+    "learning_rate": 0.0001,
+    "effective_batch_size": 16,
+    "max_length": 512,
+    "seed": 42,
+    "precision": "bf16",
+    "trainable_params": 8716288,
+    "train_runtime_s": 484.7,
+    "final_train_loss": 0.1392,
+    "eval_loss_per_epoch": [
+      0.0448,
+      0.0337,
+      0.0319
+    ]
+  }
+}
