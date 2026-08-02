@@ -2,9 +2,14 @@
 __pycache__/
 *.pyc
 .DS_Store
+.ipynb_checkpoints/
 
 # Derived from the pinned submodule by a seeded script — regenerate, don't commit
 data/processed/
+
+# Training checkpoints and optimizer state — large and disposable.
+# The trained LoRA adapter is NOT here: it lives in models/ and is committed,
+# so the reported numbers can be reproduced without a GPU.
 outputs/
 
 # Claude Code local settings (do not publish)
