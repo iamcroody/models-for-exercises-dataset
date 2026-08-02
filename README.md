@@ -16,7 +16,12 @@ exercises, measured honestly against two baselines on a held-out validation set.
 
 The whole pipeline is one notebook:
 **[`notebooks/M1_finetuning_qwen3.ipynb`](notebooks/M1_finetuning_qwen3.ipynb)**
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iamcroody/models-for-exercises-dataset/blob/main/notebooks/M1_finetuning_qwen3.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iamcroody/models-for-exercises-dataset/blob/m1-finetuning-baseline/notebooks/M1_finetuning_qwen3.ipynb)
+
+> The badge and the notebook's `BRANCH` constant both point at
+> `m1-finetuning-baseline`. Change both to `main` when this merges — Colab clones the
+> default branch unless told otherwise, so a stale value there means a grader gets a repo
+> without this code in it.
 
 It is built for the free Colab T4 and sized for it — 6.7 GB peak against 15 GB available,
 and precision is selected from the device at runtime because the T4 has no bf16 units
