@@ -267,6 +267,98 @@ def write_report(name, payload):
     return path
 
 
+BASE_MODEL = "Qwen/Qwen3-1.7B"
+
+# The gold answer is ~15 tokens. 64 is a deliberate, equal budget for both the
+# untrained and the fine-tuned model: a model that cannot produce a 15-token
+# JSON object within 64 tokens has failed the task, and truncated output
+# counts as invalid rather than being quietly retried with more room.
+MAX_NEW_TOKENS = 64
+
+
+def load_tokenizer(model_id=BASE_MODEL):
+    from transformers import AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(model_id)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    return tok
+
+
+def load_model(model_id=BASE_MODEL, adapter=None, dtype=None):
+    """Load the base model, optionally with a LoRA adapter merged on top."""
+    import torch
+    from transformers import AutoModelForCausalLM
+
+    _, default_dtype = pick_device_dtype()
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id, dtype=dtype or default_dtype, device_map="auto"
+    )
+    if adapter:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, adapter)
+        # Merging folds the adapter into the base weights so generation runs
+        # at base-model speed instead of through the LoRA side path.
+        model = model.merge_and_unload()
+
+    model.eval()
+    torch.set_grad_enabled(False)
+    return model
+
+
+def generate_replies(model, tok, records, batch_size=16, show_progress=True):
+    """Greedy-decode one reply per record.
+
+    Greedy, not sampled: the task has one correct answer, and temperature
+    would add run-to-run variance to a number we are asking a reader to
+    compare across three rows of a table.
+
+    `enable_thinking=False` matters more than it looks. Qwen3's template
+    always inserts an empty `<think></think>` block ahead of assistant content
+    when rendering a full conversation, which is what the model is trained on
+    here; at generation time only `enable_thinking=False` reproduces that same
+    prefix. Leaving it True would end the prompt at `assistant\\n` and hand the
+    fine-tuned model a suffix it never saw during training.
+    """
+    import torch
+
+    original_side = tok.padding_side
+    tok.padding_side = "left"  # required for batched decoder generation
+    replies = []
+    try:
+        for start in range(0, len(records), batch_size):
+            batch = records[start : start + batch_size]
+            texts = [
+                tok.apply_chat_template(
+                    r["prompt"],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=False,
+                )
+                for r in batch
+            ]
+            enc = tok(texts, return_tensors="pt", padding=True).to(model.device)
+            out = model.generate(
+                **enc,
+                max_new_tokens=MAX_NEW_TOKENS,
+                do_sample=False,
+                pad_token_id=tok.pad_token_id,
+            )
+            for i in range(len(batch)):
+                new_tokens = out[i][enc["input_ids"].shape[1] :]
+                replies.append(tok.decode(new_tokens, skip_special_tokens=True))
+            if show_progress:
+                done = min(start + batch_size, len(records))
+                print(f"  generated {done}/{len(records)}", end="\r", flush=True)
+    finally:
+        tok.padding_side = original_side
+
+    if show_progress:
+        print()
+    return replies
+
+
 def pick_device_dtype():
     """bf16 where the GPU supports it, fp16 otherwise.
 

@@ -1,0 +1,29 @@
+{
+  "n": 121,
+  "json_valid_rate": 1.0,
+  "fields": {
+    "target": {
+      "accuracy": 0.3223,
+      "macro_f1": 0.2825,
+      "in_label_space_rate": 0.7025
+    },
+    "equipment": {
+      "accuracy": 0.8926,
+      "macro_f1": 0.9004,
+      "in_label_space_rate": 0.9835
+    }
+  },
+  "joint_accuracy": 0.3058,
+  "derived_body_part_accuracy": 0.4298,
+  "model": "Qwen/Qwen3-1.7B",
+  "adapter": null,
+  "split": "val",
+  "max_new_tokens": 64,
+  "sample_replies": [
+    "{\n  \"target\": \"abductors\",\n  \"equipment\": \"body weight\"\n}",
+    "{\n  \"target\": \"traps\",\n  \"equipment\": \"smith machine\"\n}",
+    "{\n  \"target\": \"dumbbell iron cross\",\n  \"equipment\": \"dumbbell\"\n}",
+    "{\n  \"target\": \"pectors\",\n  \"equipment\": \"dumbbell\"\n}",
+    "{\n  \"target\": \"pectors\",\n  \"equipment\": \"cable\"\n}"
+  ]
+}
