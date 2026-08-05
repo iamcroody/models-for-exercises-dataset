@@ -69,6 +69,13 @@ def main():
     p.add_argument("--grad-accum", type=int, default=8)
     p.add_argument("--n-examples", type=int, default=N_EXAMPLES)
     p.add_argument("--epochs", type=float, default=EPOCHS)
+    p.add_argument("--gen-batch", type=int, default=8)
+    p.add_argument(
+        "--no-grad-ckpt",
+        dest="grad_ckpt",
+        action="store_false",
+        help="stop recomputing activations — spends VRAM to buy ~30-40%% speed",
+    )
     p.add_argument("--no-generate", action="store_true")
     args = p.parse_args()
 
@@ -83,7 +90,9 @@ def main():
     dtype = torch.bfloat16 if major >= 8 else torch.float16
     print(f"gpu     {props.name} ({props.total_memory / 1e9:.1f} GB, sm_{major}{props.minor})")
     print(f"model   {args.model}  {'4-bit nf4' if args.four_bit else str(dtype)}")
-    print(f"config  seq={args.seq} batch={args.batch} accum={args.grad_accum}\n")
+    print(f"config  seq={args.seq} batch={args.batch} accum={args.grad_accum} "
+          f"grad_ckpt={args.grad_ckpt} gen_batch={args.gen_batch}")
+    print(f"budget  {props.total_memory / 1e9:.1f} GB total\n")
 
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -117,7 +126,7 @@ def main():
         from peft import prepare_model_for_kbit_training
 
         model = prepare_model_for_kbit_training(
-            model, use_gradient_checkpointing=True
+            model, use_gradient_checkpointing=args.grad_ckpt
         )
 
     n_tok = len(tok.encode(PROMPT.format(t="lats", o="a towel and a door") + COMPLETION))
@@ -142,7 +151,7 @@ def main():
             per_device_train_batch_size=args.batch,
             gradient_accumulation_steps=args.grad_accum,
             max_length=args.seq,
-            gradient_checkpointing=True,
+            gradient_checkpointing=args.grad_ckpt,
             gradient_checkpointing_kwargs={"use_reentrant": False},
             learning_rate=1e-4,
             logging_steps=1000,
@@ -218,7 +227,7 @@ def main():
             [{"role": "user", "content": PROMPT.format(t="lats", o="a towel")}],
             tokenize=False, add_generation_prompt=True, enable_thinking=False,
         )
-    ] * 8
+    ] * args.gen_batch
     enc = tok(texts, return_tensors="pt", padding=True).to(model.device)
 
     with torch.no_grad():
@@ -232,7 +241,8 @@ def main():
     gen = time.perf_counter() - t0
 
     per_prompt = gen / len(texts)
-    print(f"\ngen     {per_prompt:.1f} s/prompt at {EVAL_NEW_TOKENS} new tokens, batch 8")
+    print(f"\ngen     {per_prompt:.1f} s/prompt at {EVAL_NEW_TOKENS} new tokens, "
+          f"batch {args.gen_batch}")
     vram("generation peak")
     print(f"  -> {N_EVAL_PROMPTS} val prompts x 2 models (zero-shot + tuned) "
           f"~= {2 * N_EVAL_PROMPTS * per_prompt / 60:.0f} min")
