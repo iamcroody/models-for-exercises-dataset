@@ -8,6 +8,12 @@ Dummy examples are shaped to the real MacGyver profile measured from the
 catalog (prompt ~70 tokens, completion ~180, max 292), so the timings
 extrapolate to the actual run instead of to a toy.
 
+On Colab, uninstall torchao first: the image ships 0.10.0 pinned to its torch
+build, peft refuses anything below 0.16, and upgrading it drags a different
+torch in behind it.
+
+    !pip uninstall -y -q torchao
+
 Run:
     uv run python scripts/probe_model.py --model Qwen/Qwen3-1.7B
     uv run python scripts/probe_model.py --model Qwen/Qwen3-4B-Instruct-2507 --4bit
@@ -102,6 +108,18 @@ def main():
     print(f"loaded in {time.perf_counter() - t0:.0f}s")
     vram("weights")
 
+    if args.four_bit:
+        # Casts the layers that stay unquantised — layernorms, embeddings, the
+        # lm_head — up to fp32. Without it the fp16 GradScaler a T4 needs blows
+        # up on gradients that inherited the checkpoint's native bfloat16:
+        #   NotImplementedError: _amp_foreach_non_finite_check_and_unscale_cuda
+        #   not implemented for 'BFloat16'
+        from peft import prepare_model_for_kbit_training
+
+        model = prepare_model_for_kbit_training(
+            model, use_gradient_checkpointing=True
+        )
+
     n_tok = len(tok.encode(PROMPT.format(t="lats", o="a towel and a door") + COMPLETION))
     print(f"  {'dummy example':<22} {n_tok} tokens (real profile: ~250, max ~360)\n")
 
@@ -145,6 +163,15 @@ def main():
                             "gate_proj", "up_proj", "down_proj"],
         ),
     )
+    # Belt and braces on the same problem: peft picks the LoRA dtype from the
+    # layer it wraps, and for a 4-bit Linear the base weight is uint8, so the
+    # choice falls through to the checkpoint's dtype rather than ours. fp32
+    # adapters are what the scaler expects and cost ~130 MB at r=16.
+    if args.four_bit:
+        for param in trainer.model.parameters():
+            if param.requires_grad:
+                param.data = param.data.float()
+
     trainer.model.print_trainable_parameters()
 
     torch.cuda.reset_peak_memory_stats()
