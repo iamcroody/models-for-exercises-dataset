@@ -201,6 +201,16 @@ def main():
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
 
+    # peft injected the adapter into `model` in place, and it has just spent
+    # `--steps` steps overfitting one repeated dummy example. Generating
+    # through it would show that dummy echoed back, not what the base model
+    # does with the prompt, so switch the adapter off for the sample below.
+    from peft.tuners.lora import LoraLayer
+
+    for module in model.modules():
+        if isinstance(module, LoraLayer):
+            module.disable_adapters = True
+
     model.eval()
     tok.padding_side = "left"
     texts = [
