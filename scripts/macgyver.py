@@ -352,6 +352,30 @@ def _summarise(per_example):
     return report
 
 
+def print_report(report, title):
+    """One formatter, so every script's table reads the same way."""
+    print(f"\n{title}")
+    print(f"  {'examples':<26} {report['n']} "
+          f"({report['n_answerable']} answerable, {report['n_refusable']} refusable)")
+    print(f"  {'format ok':<26} {report['format_ok']:.1%}")
+    print(f"  {'constraint satisfaction':<26} {report['constraint_satisfaction']:.1%}"
+          "   <- headline")
+    print(f"    {'exercise is real':<24} {report['exercise_real']:.1%}")
+    print(f"    {'target matches':<24} {report['target_match']:.1%}")
+    print(f"    {'equipment matches':<24} {report['equipment_match']:.1%}")
+    grounding = report["step_grounding_rouge_l"]
+    print(f"  {'step grounding ROUGE-L':<26} "
+          + (f"{grounding:.3f} (n={report['n_grounded']})"
+             if grounding is not None else "n/a"))
+    r = report["refusal"]
+    print(f"  {'refusal P / R / F1':<26} {r['precision']:.1%} / {r['recall']:.1%} "
+          f"/ {r['f1']:.1%}")
+    for label in ("seen_objects", "unseen_objects"):
+        s = report[label]
+        value = f"{s['constraint_satisfaction']:.1%}" if s["n"] else "n/a"
+        print(f"  {label.replace('_', ' '):<26} {value} (n={s['n']})")
+
+
 def load_catalog(path=CATALOG):
     if not path.exists():
         raise FileNotFoundError(
@@ -387,6 +411,102 @@ def write_report(name, payload):
     path = REPORTS / f"{name}.json"
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     return path
+
+
+BASE_MODEL = "Qwen/Qwen3-1.7B"
+
+# The longest gold completion renders to ~360 tokens. 448 is a deliberate,
+# equal budget for the untrained and the fine-tuned model: an answer that does
+# not finish inside it has failed, and truncated output is counted as malformed
+# rather than quietly retried with more room.
+MAX_NEW_TOKENS = 448
+
+
+def load_tokenizer(model_id=BASE_MODEL):
+    from transformers import AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(model_id)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    return tok
+
+
+def load_model(model_id=BASE_MODEL, adapter=None, four_bit=False):
+    """Load the base model, optionally with a LoRA adapter merged on top."""
+    import torch
+    from transformers import AutoModelForCausalLM
+
+    _, dtype = pick_device_dtype()
+    kwargs = {"dtype": dtype, "device_map": "auto"}
+    if four_bit:
+        from transformers import BitsAndBytesConfig
+
+        kwargs["quantization_config"] = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=dtype,
+            bnb_4bit_use_double_quant=True,
+        )
+
+    model = AutoModelForCausalLM.from_pretrained(model_id, **kwargs)
+    if adapter:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, adapter)
+        if not four_bit:
+            # Merging folds the adapter into the base weights so generation
+            # runs at base-model speed. A 4-bit base cannot absorb it.
+            model = model.merge_and_unload()
+
+    model.eval()
+    torch.set_grad_enabled(False)
+    return model
+
+
+def generate_replies(model, tok, rows, batch_size=8, show_progress=True):
+    """Greedy-decode one reply per row.
+
+    Greedy, not sampled: temperature would add run-to-run variance to numbers a
+    reader is asked to compare across rows of a table.
+
+    `enable_thinking=False` matters more than it looks. Qwen3's template inserts
+    an empty <think></think> block ahead of assistant content when rendering a
+    full conversation, which is what the model is trained on here; only
+    `enable_thinking=False` reproduces that prefix at generation time. Leaving
+    it True ends the prompt at `assistant\\n` and hands the fine-tuned model a
+    suffix it never saw during training.
+    """
+    original_side = tok.padding_side
+    tok.padding_side = "left"  # required for batched decoder generation
+    replies = []
+    try:
+        for start in range(0, len(rows), batch_size):
+            batch = rows[start : start + batch_size]
+            texts = [
+                tok.apply_chat_template(
+                    r["prompt"], tokenize=False,
+                    add_generation_prompt=True, enable_thinking=False,
+                )
+                for r in batch
+            ]
+            enc = tok(texts, return_tensors="pt", padding=True).to(model.device)
+            out = model.generate(
+                **enc, max_new_tokens=MAX_NEW_TOKENS,
+                do_sample=False, pad_token_id=tok.pad_token_id,
+            )
+            for i in range(len(batch)):
+                replies.append(tok.decode(
+                    out[i][enc["input_ids"].shape[1] :], skip_special_tokens=True
+                ))
+            if show_progress:
+                done = min(start + batch_size, len(rows))
+                print(f"  generated {done}/{len(rows)}", end="\r", flush=True)
+    finally:
+        tok.padding_side = original_side
+
+    if show_progress:
+        print()
+    return replies
 
 
 def pick_device_dtype():

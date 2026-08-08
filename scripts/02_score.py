@@ -20,29 +20,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import macgyver as mg
 
 
-def print_report(report, title):
-    print(f"\n{title}")
-    print(f"  {'examples':<26} {report['n']} "
-          f"({report['n_answerable']} answerable, {report['n_refusable']} refusable)")
-    print(f"  {'format ok':<26} {report['format_ok']:.1%}")
-    print(f"  {'constraint satisfaction':<26} {report['constraint_satisfaction']:.1%}"
-          "   <- headline")
-    print(f"    {'exercise is real':<24} {report['exercise_real']:.1%}")
-    print(f"    {'target matches':<24} {report['target_match']:.1%}")
-    print(f"    {'equipment matches':<24} {report['equipment_match']:.1%}")
-    grounding = report["step_grounding_rouge_l"]
-    print(f"  {'step grounding ROUGE-L':<26} "
-          f"{grounding:.3f} (n={report['n_grounded']})" if grounding is not None
-          else f"  {'step grounding ROUGE-L':<26} n/a")
-    r = report["refusal"]
-    print(f"  {'refusal P / R / F1':<26} {r['precision']:.1%} / {r['recall']:.1%} "
-          f"/ {r['f1']:.1%}")
-    for label in ("seen_objects", "unseen_objects"):
-        s = report[label]
-        value = f"{s['constraint_satisfaction']:.1%}" if s["n"] else "n/a"
-        print(f"  {label.replace('_', ' '):<26} {value} (n={s['n']})")
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", default="val")
@@ -65,7 +42,7 @@ def main():
         title = f"self-test: gold completions on {args.split} ({len(rows)} examples)"
 
     report = mg.score_predictions(replies, rows, catalog)
-    print_report(report, title)
+    mg.print_report(report, title)
 
     if not args.replies:
         # The gold answers are correct by construction. If the scorer disagrees
