@@ -10,6 +10,7 @@ digit), so anything two of them need lives here.
 """
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -173,6 +174,182 @@ def build_refusal(target, obj, alternative):
         f"Closest alternative: {alternative['name']}, which needs "
         f"{alternative['equipment']}."
     )
+
+
+_THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
+_FIELD = re.compile(r"^\s*(exercise|gym equivalent|adaptation|safety)\s*:\s*(.*)$",
+                    re.IGNORECASE)
+_STEP = re.compile(r"^\s*(\d+)[.)]\s+(.*)$")
+_REFUSAL = re.compile(r"no safe option|i know no |there is no .* exercise",
+                      re.IGNORECASE)
+_PUNCT = re.compile(r"[^a-z0-9 ]+")
+
+
+def normalise_name(name):
+    """Catalog names are lowercase already, but a model's are not reliably so."""
+    return _PUNCT.sub("", (name or "").lower()).strip()
+
+
+def parse_reply(text):
+    """Pull structure out of whatever the model actually emitted.
+
+    Returns a dict with `refused`, the four header fields and the step list.
+    A reply that parses into nothing is a result, not an error: the rate at
+    which an untrained model fails to produce the format is one of the clearest
+    things fine-tuning fixes, so it gets counted rather than repaired. Cleanup
+    is limited to stripping reasoning blocks — nothing here guesses at values.
+    """
+    if not text:
+        return {"refused": False, "exercise": None, "equipment": None,
+                "adaptation": None, "safety": None, "steps": [], "parsed": False}
+
+    text = _THINK.sub("", text).strip()
+    if _REFUSAL.search(text):
+        return {"refused": True, "exercise": None, "equipment": None,
+                "adaptation": None, "safety": None, "steps": [], "parsed": True}
+
+    out = {"refused": False, "exercise": None, "equipment": None,
+           "adaptation": None, "safety": None, "steps": []}
+    for line in text.splitlines():
+        field = _FIELD.match(line)
+        if field:
+            key = field.group(1).lower().replace("gym equivalent", "equipment")
+            out[key] = field.group(2).strip() or None
+            continue
+        step = _STEP.match(line)
+        if step:
+            out["steps"].append(step.group(2).strip())
+
+    out["parsed"] = bool(out["exercise"] and out["steps"])
+    return out
+
+
+def build_name_index(catalog):
+    """normalised exercise name -> record. Six names repeat; first one wins."""
+    index = {}
+    for record in catalog:
+        index.setdefault(normalise_name(record["name"]), record)
+    return index
+
+
+def score_predictions(replies, rows, catalog):
+    """Score model replies against the catalog — never against the gold string.
+
+    The gold completion names one valid exercise out of many: a request for
+    `delts` with water bottles has dozens of correct answers, and grading
+    against the single one our generator happened to pick would mark most of
+    them wrong. So every check resolves the exercise the model *named* in the
+    real catalog and asks whether that choice satisfies the request.
+
+    This is also what keeps the evaluation honest under the data guide's rule
+    that a test set must be real. Our completions are templated; the catalog
+    is not, and it is the catalog that does the grading here.
+    """
+    from rouge_score import rouge_scorer
+
+    if len(replies) != len(rows):
+        raise ValueError(f"{len(replies)} replies for {len(rows)} rows")
+
+    index = build_name_index(catalog)
+    rouge = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=True)
+
+    per_example = []
+    for reply, row in zip(replies, rows):
+        got = parse_reply(reply)
+        record = index.get(normalise_name(got["exercise"])) if got["exercise"] else None
+        should_refuse = row["kind"] == "refusal"
+
+        result = {
+            "object_seen": row["object_seen"],
+            "should_refuse": should_refuse,
+            "refused": got["refused"],
+            "format_ok": got["refused"] or got["parsed"],
+            "exercise_real": record is not None,
+            "target_match": record is not None and record["target"] == row["target"],
+            # The object the user offered stands for one equipment class. The
+            # named exercise has to actually use that class — a bodyweight
+            # answer to "I have two bricks" ignores the constraint even though
+            # nothing about it is unsafe.
+            "equipment_match": (
+                record is not None
+                and record["equipment"] == equipment_for_object(row["object"])
+            ),
+            "rouge_l": None,
+        }
+
+        # Step grounding, measured against the steps of the exercise the model
+        # named. High ROUGE-L means the recited biomechanics are the catalog's;
+        # low means they were invented. Scored only where there is a real
+        # exercise to compare against — a hallucinated name has no reference,
+        # and averaging a zero in would conflate two different failures.
+        if record is not None and got["steps"]:
+            reference = " ".join(record["instruction_steps"]["en"])
+            result["rouge_l"] = rouge.score(
+                reference, " ".join(got["steps"])
+            )["rougeL"].fmeasure
+
+        result["satisfied"] = (
+            not should_refuse
+            and result["format_ok"]
+            and result["exercise_real"]
+            and result["target_match"]
+            and result["equipment_match"]
+        )
+        per_example.append(result)
+
+    return _summarise(per_example)
+
+
+def _summarise(per_example):
+    def rate(items, key):
+        return round(sum(bool(i[key]) for i in items) / len(items), 4) if items else None
+
+    answerable = [i for i in per_example if not i["should_refuse"]]
+    refusable = [i for i in per_example if i["should_refuse"]]
+    grounded = [i for i in per_example if i["rouge_l"] is not None]
+
+    # Refusal precision and recall, because one without the other is gameable:
+    # a model that refuses everything gets perfect recall, and one that never
+    # refuses gets perfect precision.
+    refused_wrongly = sum(i["refused"] for i in answerable)
+    refused_rightly = sum(i["refused"] for i in refusable)
+    total_refusals = refused_wrongly + refused_rightly
+    precision = refused_rightly / total_refusals if total_refusals else 0.0
+    recall = refused_rightly / len(refusable) if refusable else 0.0
+
+    report = {
+        "n": len(per_example),
+        "n_answerable": len(answerable),
+        "n_refusable": len(refusable),
+        "format_ok": rate(per_example, "format_ok"),
+        # The headline. Everything below explains where it was lost.
+        "constraint_satisfaction": rate(answerable, "satisfied"),
+        "exercise_real": rate(answerable, "exercise_real"),
+        "target_match": rate(answerable, "target_match"),
+        "equipment_match": rate(answerable, "equipment_match"),
+        "step_grounding_rouge_l": (
+            round(sum(i["rouge_l"] for i in grounded) / len(grounded), 4)
+            if grounded else None
+        ),
+        "n_grounded": len(grounded),
+        "refusal": {
+            "precision": round(precision, 4),
+            "recall": round(recall, 4),
+            "f1": round(2 * precision * recall / (precision + recall), 4)
+            if precision + recall else 0.0,
+        },
+    }
+
+    # The whole reason the holdout objects exist: a gap between these two rows
+    # means the model memorised object phrases instead of learning the roles.
+    for label, subset in (("seen_objects", [i for i in answerable if i["object_seen"]]),
+                          ("unseen_objects", [i for i in answerable if not i["object_seen"]])):
+        report[label] = {
+            "n": len(subset),
+            "constraint_satisfaction": rate(subset, "satisfied"),
+        }
+
+    return report
 
 
 def load_catalog(path=CATALOG):
