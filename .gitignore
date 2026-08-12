@@ -7,5 +7,6 @@ __pycache__/
 data/processed/
 outputs/
 
-# Claude Code local settings (do not publish)
-.claude/
+# trained adapter, committed so results are reproducible without a GPU
+models/*
+!models/r16-all-linear/

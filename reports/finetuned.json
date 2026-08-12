@@ -1,0 +1,49 @@
+{
+  "n": 154,
+  "n_answerable": 108,
+  "n_refusable": 46,
+  "format_ok": 1.0,
+  "constraint_satisfaction": 0.1296,
+  "exercise_real": 0.2037,
+  "target_match": 0.2037,
+  "equipment_match": 0.1296,
+  "step_grounding_rouge_l": 0.6662,
+  "n_grounded": 33,
+  "refusal": {
+    "precision": 1.0,
+    "recall": 0.0435,
+    "f1": 0.0833
+  },
+  "seen_objects": {
+    "n": 54,
+    "constraint_satisfaction": 0.1111
+  },
+  "unseen_objects": {
+    "n": 54,
+    "constraint_satisfaction": 0.1481
+  },
+  "model": "Qwen/Qwen3-1.7B",
+  "adapter": "models/r16-all-linear",
+  "split": "val",
+  "n_scored": 154,
+  "examples": [
+    {
+      "why_shown": "answerable",
+      "prompt": "I want to train my upper back but I have no gym equipment. All I have is an empty room.\nRecommend one safe exercise and explain how to do it.\n\nAnswer in exactly this format:\nExercise: <name>\nGym equivalent: <equipment>\nAdaptation: <how to use what I have>\nSteps:\n1. <step>\nSafety: <one line>\n\nIf nothing you know of trains that muscle with that object, say so instead of inventing one.",
+      "gold": "Exercise: bodyweight standing one arm row (with towel)\nGym equivalent: body weight\nAdaptation: No equipment is needed for this one. Clear enough space to extend fully in every direction before you start.\nSteps:\n1. Stand with your feet shoulder-width apart, knees slightly bent, and hold a towel with one hand.\n2. Bend forward at the hips, keeping your back straight and your core engaged.\n3. Pull the towel towards your chest, squeezing your shoulder blades together.\n4. Pause for a moment at the top, then slowly lower the towel back to the starting position.\n5. Repeat for the desired number of repetitions, then switch to the other arm.\nSafety: Keep the movement controlled and stop if you feel pain.",
+      "generated": "Exercise: dumbbell standing row\nGym equivalent: dumbbell\nAdaptation: Use an empty weight on the dumbbell. Adjust the load so the movement stays controlled and stop if you feel pain.\nSteps:\n1. Stand with your feet shoulder-width apart, holding a dumbbell in each hand with an overhand grip.\n2. Bend your knees slightly and hinge forward at the hips, keeping your back straight.\n3. Extend your arms straight up towards the ceiling, squeezing your shoulder blades together.\n4. Pause for a moment at the top, then slowly lower the dumbbells back down to the starting position.\n5. Repeat for the desired number of repetitions.\nSafety: Keep the movement controlled and stop if you feel pain."
+    },
+    {
+      "why_shown": "refusal",
+      "prompt": "I want to train my cardiovascular system but I have no gym equipment. All I have is a paint can with a wire handle.\nRecommend one safe exercise and explain how to do it.\n\nAnswer in exactly this format:\nExercise: <name>\nGym equivalent: <equipment>\nAdaptation: <how to use what I have>\nSteps:\n1. <step>\nSafety: <one line>\n\nIf nothing you know of trains that muscle with that object, say so instead of inventing one.",
+      "gold": "No safe option: I know no cardiovascular system exercise that works with a paint can with a wire handle.\nClosest alternative: astride jumps (male), which needs body weight.",
+      "generated": "Exercise: kettlebell squat\nGym equivalent: kettlebell\nAdaptation: Use a paint can with a wire handle in place of the kettlebell. Grip it firmly and keep your wrist straight — an off-centre handle pulls it out of line.\nSteps:\n1. Stand with your feet shoulder-width apart, holding a kettlebell in each hand at your sides.\n2. Lower your body into a squat position by bending your knees and pushing your hips back.\n3. Continue lowering until your thighs are parallel to the ground, keeping your chest up and core engaged.\n4. Pause for a moment at the bottom, then push through your heels to return to the starting position.\n5. Repeat for the desired number of repetitions.\nSafety: Keep the movement controlled and stop if you feel pain."
+    },
+    {
+      "why_shown": "unseen object",
+      "prompt": "I want to train my abs but I have no gym equipment. All I have is a bare hallway.\nRecommend one safe exercise and explain how to do it.\n\nAnswer in exactly this format:\nExercise: <name>\nGym equivalent: <equipment>\nAdaptation: <how to use what I have>\nSteps:\n1. <step>\nSafety: <one line>\n\nIf nothing you know of trains that muscle with that object, say so instead of inventing one.",
+      "gold": "Exercise: dead bug\nGym equivalent: body weight\nAdaptation: No equipment is needed for this one. Clear enough space to extend fully in every direction before you start.\nSteps:\n1. Lie flat on your back with your arms extended towards the ceiling.\n2. Bend your knees and lift your legs off the ground, creating a 90-degree angle at your hips and knees.\n3. Engage your core and lower back to press your lower back into the ground.\n4. Slowly lower your right arm and left leg towards the ground, keeping them straight and hovering just above the floor.\n5. Pause for a moment, then return to the starting position.\n6. Repeat the movement with your left arm and right leg.\n7. Continue alternating sides for the desired number of repetitions.\nSafety: Keep the movement controlled and stop if you feel pain.",
+      "generated": "Exercise: side plank with leg lift\nGym equivalent: body weight\nAdaptation: No equipment is needed for this one. Clear enough space to extend fully in every direction before you start.\nSteps:\n1. Start by lying on your side with your legs extended and stacked on top of each other.\n2. Engage your core and lift your top leg off the ground, bringing it towards your opposite shoulder.\n3. Hold this position for a few seconds, then slowly lower your leg back down to the starting position.\n4. Repeat on the other side.\n5. Continue alternating sides for the desired number of repetitions.\nSafety: Keep the movement controlled and stop if you feel pain."
+    }
+  ]
+}

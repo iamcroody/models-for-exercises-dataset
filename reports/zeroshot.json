@@ -1,0 +1,49 @@
+{
+  "n": 154,
+  "n_answerable": 108,
+  "n_refusable": 46,
+  "format_ok": 1.0,
+  "constraint_satisfaction": 0.0,
+  "exercise_real": 0.0,
+  "target_match": 0.0,
+  "equipment_match": 0.0,
+  "step_grounding_rouge_l": null,
+  "n_grounded": 0,
+  "refusal": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0
+  },
+  "seen_objects": {
+    "n": 54,
+    "constraint_satisfaction": 0.0
+  },
+  "unseen_objects": {
+    "n": 54,
+    "constraint_satisfaction": 0.0
+  },
+  "model": "Qwen/Qwen3-1.7B",
+  "adapter": null,
+  "split": "val",
+  "n_scored": 154,
+  "examples": [
+    {
+      "why_shown": "answerable",
+      "prompt": "I want to train my upper back but I have no gym equipment. All I have is an empty room.\nRecommend one safe exercise and explain how to do it.\n\nAnswer in exactly this format:\nExercise: <name>\nGym equivalent: <equipment>\nAdaptation: <how to use what I have>\nSteps:\n1. <step>\nSafety: <one line>\n\nIf nothing you know of trains that muscle with that object, say so instead of inventing one.",
+      "gold": "Exercise: bodyweight standing one arm row (with towel)\nGym equivalent: body weight\nAdaptation: No equipment is needed for this one. Clear enough space to extend fully in every direction before you start.\nSteps:\n1. Stand with your feet shoulder-width apart, knees slightly bent, and hold a towel with one hand.\n2. Bend forward at the hips, keeping your back straight and your core engaged.\n3. Pull the towel towards your chest, squeezing your shoulder blades together.\n4. Pause for a moment at the top, then slowly lower the towel back to the starting position.\n5. Repeat for the desired number of repetitions, then switch to the other arm.\nSafety: Keep the movement controlled and stop if you feel pain.",
+      "generated": "Exercise: Plank\nGym equivalent: None (no equipment required)\nAdaptation: Use a chair or wall for support to maintain proper form.\nSteps:\n1. Get on your hands and knees with your forearms straight and chest aligned.\n2. Engage your core and keep your body straight from your shoulders to your heels.\n3. Lower your body slowly back to the starting position.\nSafety: Avoid arching your back or leaning too far forward."
+    },
+    {
+      "why_shown": "refusal",
+      "prompt": "I want to train my cardiovascular system but I have no gym equipment. All I have is a paint can with a wire handle.\nRecommend one safe exercise and explain how to do it.\n\nAnswer in exactly this format:\nExercise: <name>\nGym equivalent: <equipment>\nAdaptation: <how to use what I have>\nSteps:\n1. <step>\nSafety: <one line>\n\nIf nothing you know of trains that muscle with that object, say so instead of inventing one.",
+      "gold": "No safe option: I know no cardiovascular system exercise that works with a paint can with a wire handle.\nClosest alternative: astride jumps (male), which needs body weight.",
+      "generated": "Exercise: Plank\nGym equivalent: None (no gym equipment)\nAdaptation: Use the paint can as a makeshift support for the plank position.\nSteps:\n1. Place the paint can on the floor between your feet, with your hands under your shoulders.\n2. Engage your core and keep your body straight as you hold the position for 30 seconds.\nSafety: Avoid overextending your neck or arching your back."
+    },
+    {
+      "why_shown": "unseen object",
+      "prompt": "I want to train my abs but I have no gym equipment. All I have is a bare hallway.\nRecommend one safe exercise and explain how to do it.\n\nAnswer in exactly this format:\nExercise: <name>\nGym equivalent: <equipment>\nAdaptation: <how to use what I have>\nSteps:\n1. <step>\nSafety: <one line>\n\nIf nothing you know of trains that muscle with that object, say so instead of inventing one.",
+      "gold": "Exercise: dead bug\nGym equivalent: body weight\nAdaptation: No equipment is needed for this one. Clear enough space to extend fully in every direction before you start.\nSteps:\n1. Lie flat on your back with your arms extended towards the ceiling.\n2. Bend your knees and lift your legs off the ground, creating a 90-degree angle at your hips and knees.\n3. Engage your core and lower back to press your lower back into the ground.\n4. Slowly lower your right arm and left leg towards the ground, keeping them straight and hovering just above the floor.\n5. Pause for a moment, then return to the starting position.\n6. Repeat the movement with your left arm and right leg.\n7. Continue alternating sides for the desired number of repetitions.\nSafety: Keep the movement controlled and stop if you feel pain.",
+      "generated": "Exercise: Plank\nGym equivalent: None (no equipment required)\nAdaptation: Use a wall or a sturdy surface to support the body for balance.\nSteps:\n1. Get on your hands and knees with your forearms straight and your body straight.\n2. Lift your body off the floor until your body is straight from your shoulders to your heels.\n3. Keep your body straight and engage your core.\n4. Lower yourself back down to the starting position.\nSafety: Avoid arching your back or leaning too far forward."
+    }
+  ]
+}

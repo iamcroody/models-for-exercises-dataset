@@ -11,3 +11,4 @@
 - [CLI reference](https://docs.astral.sh/uv/reference/cli/)
 - [PyTorch integration](https://docs.astral.sh/uv/guides/integration/pytorch/)
 - [GitHub repo](https://github.com/astral-sh/uv)
+
