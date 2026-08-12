@@ -28,16 +28,16 @@ reasoning are in `scripts/04_train_lora.py`.
 | method | constraint satisfaction | step grounding (ROUGE-L) | refusal F1 |
 |---|---:|---:|---:|
 | zero-shot (no adapter) | 0.0% | n/a | 0.0% |
-| LoRA | not run yet | | |
+| LoRA | see `reports/finetuned.json` | | |
 
 Zero-shot: the model answers in the right format 100% of the time, but always names a generic
 exercise ("Plank") that isn't an exact match to this catalog's specific naming, so it never
 passes any of the real-exercise checks. Full baseline numbers are in `reports/zeroshot.json`.
 
-LoRA training needs more compute than this machine reliably has for a ~90 minute run without
-getting interrupted. The training script (`scripts/04_train_lora.py`) and the evaluator
-(`scripts/03_eval_zeroshot.py --adapter ...`) both run as-is, just need someone with a faster
-GPU (or the Colab notebook) to actually finish a run and drop the numbers in here.
+LoRA training took about 2 hours locally (`models/r16-all-linear`, eval loss 0.52 -> 0.41 ->
+0.40 over 3 epochs, `training_summary.json` has the full log). The constraint-satisfaction
+numbers from `scripts/03_eval_zeroshot.py --adapter models/r16-all-linear` are still being
+computed, `reports/finetuned.json` will have them once that run finishes.
 
 **Notebook.** [`notebooks/M1_macgyver.ipynb`](notebooks/M1_macgyver.ipynb) runs the whole
 pipeline on a free Colab T4: model/tokenizer load, dataset build, baseline, LoRA training, and

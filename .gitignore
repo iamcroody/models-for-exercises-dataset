@@ -6,3 +6,7 @@ __pycache__/
 # Derived from the pinned submodule by a seeded script — regenerate, don't commit
 data/processed/
 outputs/
+
+# trained adapter, committed so results are reproducible without a GPU
+models/*
+!models/r16-all-linear/
