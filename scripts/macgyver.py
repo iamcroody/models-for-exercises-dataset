@@ -436,8 +436,8 @@ def load_model(model_id=BASE_MODEL, adapter=None, four_bit=False):
     import torch
     from transformers import AutoModelForCausalLM
 
-    _, dtype = pick_device_dtype()
-    kwargs = {"dtype": dtype, "device_map": "auto"}
+    device, dtype = pick_device_dtype()
+    kwargs = {"dtype": dtype}
     if four_bit:
         from transformers import BitsAndBytesConfig
 
@@ -447,8 +447,13 @@ def load_model(model_id=BASE_MODEL, adapter=None, four_bit=False):
             bnb_4bit_compute_dtype=dtype,
             bnb_4bit_use_double_quant=True,
         )
+        kwargs["device_map"] = "auto"
 
     model = AutoModelForCausalLM.from_pretrained(model_id, **kwargs)
+    if not four_bit:
+        # no device_map="auto" for a plain load, it's for multi-GPU sharding
+        # we don't need, and it crashes loading weights on MPS
+        model = model.to(device)
     if adapter:
         from peft import PeftModel
 
@@ -510,7 +515,7 @@ def generate_replies(model, tok, rows, batch_size=8, show_progress=True):
 
 
 def pick_device_dtype():
-    """bf16 where the GPU has bf16 *hardware*, fp16 otherwise.
+    """bf16 where the GPU has bf16 *hardware*, fp16 otherwise, mps for local dev.
 
     `torch.cuda.is_bf16_supported()` is a trap: it returns True on a T4 because
     it counts bf16 that torch can emulate in software, which runs slowly and
@@ -520,6 +525,8 @@ def pick_device_dtype():
     import torch
 
     if not torch.cuda.is_available():
+        if torch.backends.mps.is_available():
+            return "mps", torch.float16
         return "cpu", torch.float32
 
     major, _ = torch.cuda.get_device_capability()
