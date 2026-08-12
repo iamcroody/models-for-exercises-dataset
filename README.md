@@ -28,16 +28,19 @@ reasoning are in `scripts/04_train_lora.py`.
 | method | constraint satisfaction | step grounding (ROUGE-L) | refusal F1 |
 |---|---:|---:|---:|
 | zero-shot (no adapter) | 0.0% | n/a | 0.0% |
-| LoRA | see `reports/finetuned.json` | | |
+| LoRA | 13.0% | 0.666 (n=33) | 8.3% |
 
 Zero-shot: the model answers in the right format 100% of the time, but always names a generic
 exercise ("Plank") that isn't an exact match to this catalog's specific naming, so it never
-passes any of the real-exercise checks. Full baseline numbers are in `reports/zeroshot.json`.
+passes any of the real-exercise checks.
 
-LoRA training took about 2 hours locally (`models/r16-all-linear`, eval loss 0.52 -> 0.41 ->
-0.40 over 3 epochs, `training_summary.json` has the full log). The constraint-satisfaction
-numbers from `scripts/03_eval_zeroshot.py --adapter models/r16-all-linear` are still being
-computed, `reports/finetuned.json` will have them once that run finishes.
+LoRA: constraint satisfaction goes from 0% to 13.0%, and when it does name a real exercise the
+steps it recites are mostly grounded in that exercise's real instructions (ROUGE-L 0.666). It
+still mostly guesses instead of refusing: refusal precision is 100% (every refusal it gives is
+correct) but recall is only 4.3%, so it says "no valid exercise" on almost none of the cases
+that actually call for it. Seen vs unseen objects (11.1% vs 14.8%) don't show a real gap, but
+with only 54 examples each that's within noise (about 0.6 points per example). Full numbers in
+`reports/zeroshot.json` and `reports/finetuned.json`.
 
 **Notebook.** [`notebooks/M1_macgyver.ipynb`](notebooks/M1_macgyver.ipynb) runs the whole
 pipeline on a free Colab T4: model/tokenizer load, dataset build, baseline, LoRA training, and
