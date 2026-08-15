@@ -42,6 +42,7 @@ Run:
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -141,6 +142,13 @@ def main():
             model, use_gradient_checkpointing=args.grad_ckpt
         )
 
+    # Warmup as an explicit step count rather than warmup_ratio. The ratio form
+    # was deprecated and then removed, so a notebook that pip-installs the
+    # latest TRL crashes on it before the first step. Same 3% of the schedule,
+    # computed here so it still tracks the dataset and epoch count.
+    steps_per_epoch = math.ceil(len(train_ds) / (args.batch_size * args.grad_accum))
+    warmup_steps = max(1, round(0.03 * steps_per_epoch * args.epochs))
+
     trainer = SFTTrainer(
         model=model,
         args=SFTConfig(
@@ -149,7 +157,7 @@ def main():
             num_train_epochs=args.epochs,
             learning_rate=args.lr,
             lr_scheduler_type="cosine",
-            warmup_ratio=0.03,
+            warmup_steps=warmup_steps,
             per_device_train_batch_size=args.batch_size,
             per_device_eval_batch_size=args.batch_size * 2,
             gradient_accumulation_steps=args.grad_accum,
