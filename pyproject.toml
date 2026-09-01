@@ -11,4 +11,5 @@ dependencies = [
     "accelerate>=1.14.0",
     "datasets>=5.0.0",
     "rouge-score>=0.1.2",
+    "sentence-transformers>=3.0.0",
 ]
