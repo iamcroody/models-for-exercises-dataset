@@ -1,0 +1,16 @@
+metric,description,zero-shot,lora_m1
+dim1_similarity_mean,1 · embedding similarity vs reference (0-1),0.6907,0.786
+dim1_step_grounding_rouge_l,1 · step grounding ROUGE-L (real exercises only),,0.5545
+dim2_judge_mean,"2 · LLM judge, whole eval set (1-5)",5.0,4.6429
+dim2_judge_mean_gold,"2 · LLM judge, answerable cases (1-5)",5.0,4.9
+dim2_judge_mean_adversarial,"2 · LLM judge, adversarial cases (1-5)",5.0,4.0
+dim2_judge_unparsed,2 · judge outputs with no digit (excluded from the means),0,0
+dim3_domain_hit_rate,"3 · domain criterion met, whole eval set",0.0,0.2143
+dim3_domain_hit_rate_gold,"3 · domain criterion met, answerable cases",0.0,0.3
+dim3_domain_hit_rate_adversarial,"3 · domain criterion met, adversarial cases",0.0,0.0
+dim3_domain_hit_rate_seen_objects,"3 · domain criterion met, objects seen in training",0.0,0.0
+dim3_domain_hit_rate_unseen_objects,"3 · domain criterion met, held-out objects",0.0,0.6
+n_examples,examples in the eval set,14,14
+rubric_version,judge rubric this run used,v1.0,v1.0
+judge_model,judge model,Qwen/Qwen2.5-1.5B-Instruct,Qwen/Qwen2.5-1.5B-Instruct
+seed,random seed,42,42
