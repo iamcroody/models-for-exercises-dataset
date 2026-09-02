@@ -101,7 +101,7 @@ def reachable_catalog(catalog=None):
 def load_eval_set(path=EVAL_SET_PATH):
     examples = json.loads(Path(path).read_text())
     for e in examples:
-        missing = {"id", "kind", "input", "expected", "criterion"} - set(e)
+        missing = {"id", "kind", "input", "esperado", "criterio"} - set(e)
         if missing:
             raise ValueError(f"{e.get('id', '?')} is missing {sorted(missing)}")
     return examples
@@ -426,9 +426,9 @@ def harness(eval_set, system, judge=None, similarity=None, catalog=None,
     rows = []
     for i, example in enumerate(eval_set, start=1):
         reply = system(example["input"])
-        sim = similarity(reply, example["expected"])
+        sim = similarity(reply, example["esperado"])
         rouge = step_grounding(reply, index)
-        judged = judge.score(example["input"], reply, example["expected"]) if judge else None
+        judged = judge.score(example["input"], reply, example["esperado"]) if judge else None
         domain = domain_check(example, reply, index, full_index)
 
         rows.append({
@@ -529,8 +529,8 @@ def position_bias_probe(judge, eval_set, replies, verbose=True):
     """
     flips, agreements, unparsed, raw = 0, 0, 0, []
     for example, reply in zip(eval_set, replies):
-        first = judge.compare(example["input"], example["expected"], reply)
-        second = judge.compare(example["input"], reply, example["expected"])
+        first = judge.compare(example["input"], example["esperado"], reply)
+        second = judge.compare(example["input"], reply, example["esperado"])
         if "?" in (first, second):
             unparsed += 1
             verdict = "unparsed"
@@ -565,12 +565,12 @@ def length_bias_probe(judge, eval_set, replies, verbose=True):
     uncapped, capped, raw = [], [], []
     for example, reply in zip(eval_set, replies):
         padded_text = PADDING + (reply or "") + PADDING_TAIL
-        plain = judge.score(example["input"], reply, example["expected"],
+        plain = judge.score(example["input"], reply, example["esperado"],
                             max_chars=None)
-        padded = judge.score(example["input"], padded_text, example["expected"],
+        padded = judge.score(example["input"], padded_text, example["esperado"],
                              max_chars=None)
         padded_capped = judge.score(example["input"], padded_text,
-                                    example["expected"])
+                                    example["esperado"])
         if plain is not None and padded is not None:
             uncapped.append(padded - plain)
         if plain is not None and padded_capped is not None:
@@ -728,7 +728,7 @@ def self_test(verbose=True):
     a Colab session.
     """
     eval_set = load_eval_set()
-    references = {e["input"]: e["expected"] for e in eval_set}
+    references = {e["input"]: e["esperado"] for e in eval_set}
 
     oracle = harness(eval_set, lambda p: references[p], judge=None,
                      similarity=_ConstantSimilarity(), label="oracle", verbose=False)

@@ -55,6 +55,13 @@ ANSWERABLE = [
      "held-out object: no equipment at all, so a bodyweight exercise with real steps"),
     ("triceps", "two full paint cans",
      "held-out object: a matched pair, and the triceps exercise must be a real one"),
+    ("pectorals", "a bucket with a handle",
+     "a single handled weight is a kettlebell, so a floor press rather than a "
+     "two-handed dumbbell movement"),
+    ("levator scapulae", "a patch of grass in the park",
+     "held-out object: another way of saying there is no equipment at all, and "
+     "the catalog holds only two matches, so a generic neck stretch will not "
+     "resolve"),
 ]
 
 # --- The four adversarial / edge cases -------------------------------------
@@ -190,12 +197,17 @@ def main():
 
     eval_set = []
 
+    def assert_clean(target, obj):
+        """An eval set the model was fine-tuned on measures memorisation."""
+        if (target, obj) in train_pairs:
+            raise SystemExit(f"({target}, {obj}) is in the training split, "
+                             f"so this eval set is contaminated")
+
     for i, (target, obj, criterion) in enumerate(ANSWERABLE, start=1):
         equipment = mg.equipment_for_object(obj)
         if equipment is None:
             raise SystemExit(f"{obj!r} is not in the object map")
-        if (target, obj) in train_pairs:
-            raise SystemExit(f"({target}, {obj}) is in the training split — contaminated")
+        assert_clean(target, obj)
 
         record = pick_gold(catalog, target, equipment)
         eval_set.append({
@@ -203,8 +215,8 @@ def main():
             "kind": "answerable",
             "adversarial": False,
             "input": mg.build_prompt(target, obj),
-            "expected": mg.build_answer(record, obj),
-            "criterion": criterion,
+            "esperado": mg.build_answer(record, obj),
+            "criterio": criterion,
             "meta": {
                 "target": target,
                 "object": obj,
@@ -218,6 +230,7 @@ def main():
     for case in ADVERSARIAL:
         target, obj = case["target"], case["object"]
         equipment = mg.equipment_for_object(obj) if obj else None
+        assert_clean(target, obj)
 
         if case["kind"] == "must_refuse" and equipment is not None:
             # Assert the impossibility rather than trust the comment above it.
@@ -250,8 +263,8 @@ def main():
             "kind": case["kind"],
             "adversarial": True,
             "input": case.get("input") or mg.build_prompt(target, obj),
-            "expected": expected,
-            "criterion": case["criterion"],
+            "esperado": expected,
+            "criterio": case["criterion"],
             "meta": {
                 "target": target,
                 "object": obj,
