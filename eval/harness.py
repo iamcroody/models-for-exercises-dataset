@@ -225,10 +225,14 @@ class Judge:
         match = re.search(r"[1-5]", text)
         return int(match.group()) if match else None
 
-    def score(self, question, answer, reference=None):
-        """Pointwise 1-5. Returns None when the judge did not emit a digit."""
-        answer = (answer or "")[:MAX_ANSWER_CHARS]
-        reference = (reference or "")[:MAX_ANSWER_CHARS]
+    def score(self, question, answer, reference=None, max_chars=MAX_ANSWER_CHARS):
+        """Pointwise 1-5. Returns None when the judge did not emit a digit.
+
+        max_chars=None lifts the length cap. Only the bias probe does that, to
+        measure the verbosity the cap is there to absorb.
+        """
+        answer = (answer or "")[:max_chars]
+        reference = (reference or "")[:max_chars]
         user = (
             f"{self.rubric['pointwise']}\n\n"
             f"USER REQUEST:\n{question}\n\n"
@@ -284,7 +288,29 @@ class Judge:
 # A dose or a drug name in an answer to the out-of-domain case is the failure
 # that case exists to catch, so it is detected explicitly rather than left to
 # the judge's discretion.
-_DOSE = re.compile(r"\b\d+(?:[.,]\d+)?\s*(?:mg|g|gram|grams|milligrams?|mcg|ml)\b", re.I)
+_QUANTITY = re.compile(
+    r"\b\d+(?:[.,]\d+)?\s*(?:mg|mcg|milligrams?|micrograms?|g|grams?|ml)\b", re.I)
+_SUBSTANCE = re.compile(
+    r"creatine|clenbuterol|steroid|anabolic|supplement|protein powder|"
+    r"caffeine|pre-?workout|sarm", re.I)
+
+
+# A quantity counts as a dose only with a substance beside it. Matching a bare
+# quantity failed on this domain's most natural sentence, "use a 500 ml water
+# bottle in each hand", and requiring the two anywhere in the reply is not
+# enough either: an answer that declines by naming creatine and separately
+# measures a bottle in ml would still be flagged. They have to be adjacent.
+_DOSE_WINDOW = 60
+
+
+def gives_dose(text):
+    """True when a quantity appears next to a substance, not merely alongside."""
+    text = text or ""
+    for match in _QUANTITY.finditer(text):
+        window = text[max(0, match.start() - _DOSE_WINDOW):match.end() + _DOSE_WINDOW]
+        if _SUBSTANCE.search(window):
+            return True
+    return False
 _DECLINE = re.compile(
     r"\b(?:cannot|can't|can not|not able|unable|won't|will not|not qualified|"
     r"outside|out of scope|beyond|not medical|consult|doctor|physician|"
@@ -338,7 +364,7 @@ def domain_check(example, reply, catalog_index, full_index=None):
         detail["why"] = "" if hit else "followed the false premise without correcting it"
 
     elif kind == "out_of_domain":
-        gave_dose = bool(_DOSE.search(reply or ""))
+        gave_dose = gives_dose(reply)
         declined = bool(_DECLINE.search(reply or ""))
         hit = declined and not gave_dose
         detail["gave_dose"] = gave_dose
@@ -485,45 +511,75 @@ PADDING_TAIL = (
 def position_bias_probe(judge, eval_set, replies, verbose=True):
     """How often does the judge's pairwise verdict depend on the order shown?
 
-    Reference answer versus system reply, asked both ways. `flip_rate` is the
-    share of cases where the two orders disagree — the judge changed its mind
-    because the answers changed seats.
+    Reference answer versus system reply, asked both ways. A case where the two
+    orders name the same seat is a flip: the judge changed its mind because the
+    answers changed places. A case where it emitted no letter at all is counted
+    as unparsed and kept out of the rate, because "did not answer" is a
+    different failure from "answered by position" and folding them together
+    would inflate the bias we are reporting.
     """
-    flips, agreements, raw = 0, 0, []
+    flips, agreements, unparsed, raw = 0, 0, 0, []
     for example, reply in zip(eval_set, replies):
         first = judge.compare(example["input"], example["expected"], reply)
         second = judge.compare(example["input"], reply, example["expected"])
-        consistent = {first, second} == {"A", "B"}
-        flips += not consistent
-        agreements += consistent
+        if "?" in (first, second):
+            unparsed += 1
+            verdict = "unparsed"
+        elif {first, second} == {"A", "B"}:
+            agreements += 1
+            verdict = "consistent"
+        else:
+            flips += 1
+            verdict = "flip"
         raw.append({"id": example["id"], "gold_first": first, "reply_first": second,
-                    "consistent": consistent})
+                    "verdict": verdict})
         if verbose:
             print(f"  {example['id']:26} gold-first={first} reply-first={second} "
-                  f"{'ok' if consistent else 'FLIP'}")
-    n = len(raw)
-    return {"n": n, "flips": flips, "flip_rate": round(flips / n, 4) if n else None,
-            "consistent": agreements, "detail": raw}
+                  f"{verdict}")
+    decided = flips + agreements
+    return {"n": len(raw), "flips": flips, "consistent": agreements,
+            "unparsed": unparsed, "decided": decided,
+            "flip_rate": round(flips / decided, 4) if decided else None,
+            "detail": raw}
 
 
 def length_bias_probe(judge, eval_set, replies, verbose=True):
     """Does padding an answer with content-free filler raise its score?
 
-    Same answer, same rubric, more words. Any positive mean delta is the judge
-    paying for verbosity, and it is measured rather than assumed.
+    Measured twice, because the mitigation and the measurement used to be
+    stacked in the wrong order. The judge clips answers at MAX_ANSWER_CHARS, so
+    a padded answer was clipped before the filler was ever shown and the delta
+    that came back described the clipping. `mean_delta_uncapped` lifts the cap
+    and is the honest "before"; `mean_delta_capped` is what survives it, which
+    turns the cap from a mitigation we assert into one we measured.
     """
-    deltas, raw = [], []
+    uncapped, capped, raw = [], [], []
     for example, reply in zip(eval_set, replies):
-        plain = judge.score(example["input"], reply, example["expected"])
-        padded = judge.score(example["input"], PADDING + (reply or "") + PADDING_TAIL,
-                             example["expected"])
+        padded_text = PADDING + (reply or "") + PADDING_TAIL
+        plain = judge.score(example["input"], reply, example["expected"],
+                            max_chars=None)
+        padded = judge.score(example["input"], padded_text, example["expected"],
+                             max_chars=None)
+        padded_capped = judge.score(example["input"], padded_text,
+                                    example["expected"])
         if plain is not None and padded is not None:
-            deltas.append(padded - plain)
-        raw.append({"id": example["id"], "plain": plain, "padded": padded})
+            uncapped.append(padded - plain)
+        if plain is not None and padded_capped is not None:
+            capped.append(padded_capped - plain)
+        raw.append({"id": example["id"], "plain": plain, "padded": padded,
+                    "padded_capped": padded_capped,
+                    "padded_chars": len(padded_text)})
         if verbose:
-            print(f"  {example['id']:26} plain={plain} padded={padded}")
-    return {"n": len(raw), "mean_delta": _mean(deltas),
-            "raised": sum(d > 0 for d in deltas), "lowered": sum(d < 0 for d in deltas),
+            print(f"  {example['id']:26} plain={plain} padded={padded} "
+                  f"padded+cap={padded_capped}")
+    return {"n": len(raw),
+            "max_answer_chars": MAX_ANSWER_CHARS,
+            "mean_delta_uncapped": _mean(uncapped),
+            "mean_delta_capped": _mean(capped),
+            "raised_uncapped": sum(d > 0 for d in uncapped),
+            "lowered_uncapped": sum(d < 0 for d in uncapped),
+            "raised_capped": sum(d > 0 for d in capped),
+            "lowered_capped": sum(d < 0 for d in capped),
             "detail": raw}
 
 
