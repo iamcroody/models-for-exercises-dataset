@@ -23,24 +23,34 @@ used for the fine-tuned model.
 **Method.** LoRA, `r=16`, `alpha=32`, `dropout=0.05`, `target_modules=all-linear`. Config and
 reasoning are in `scripts/04_train_lora.py`.
 
-**Results**, validation split (n=154):
+**Results.** Both splits hold 154 examples with the same composition (108 answerable, 46
+refusals, 82 unseen-object). Validation is the split we looked at while making decisions. Test
+was held back through all of M1 and scored once, after everything was finished.
 
-| method | constraint satisfaction | step grounding (ROUGE-L) | refusal F1 |
-|---|---:|---:|---:|
-| zero-shot (no adapter) | 0.0% | n/a | 0.0% |
-| LoRA | 13.0% | 0.666 (n=33) | 8.3% |
+| method | split | constraint satisfaction | step grounding (ROUGE-L) | refusal F1 |
+|---|---|---:|---:|---:|
+| zero-shot (no adapter) | val | 0.0% | n/a | 0.0% |
+| LoRA | val | 13.0% | 0.666 (n=33) | 8.3% |
+| zero-shot (no adapter) | test | 0.0% | 0.253 (n=1) | 0.0% |
+| LoRA | test | 18.5% | 0.685 (n=39) | 0.0% |
 
 Zero-shot: the model answers in the right format 100% of the time, but always names a generic
 exercise ("Plank") that isn't an exact match to this catalog's specific naming, so it never
-passes any of the real-exercise checks.
+passes any of the real-exercise checks. It behaves the same on both splits.
 
-LoRA: constraint satisfaction goes from 0% to 13.0%, and when it does name a real exercise the
-steps it recites are mostly grounded in that exercise's real instructions (ROUGE-L 0.666). It
-still mostly guesses instead of refusing: refusal precision is 100% (every refusal it gives is
-correct) but recall is only 4.3%, so it says "no valid exercise" on almost none of the cases
-that actually call for it. Seen vs unseen objects (11.1% vs 14.8%) don't show a real gap, but
-with only 54 examples each that's within noise (about 0.6 points per example). Full numbers in
-`reports/zeroshot.json` and `reports/finetuned.json`.
+LoRA on validation: constraint satisfaction goes from 0% to 13.0%, and when it does name a real
+exercise the steps it recites are mostly grounded in that exercise's real instructions (ROUGE-L
+0.666). It still mostly guesses instead of refusing: refusal precision is 100% (every refusal it
+gives is correct) but recall is only 4.3%.
+
+Test says two things, and they point in opposite directions. The headline is **higher** on the
+split we never touched, 18.5% against 13.0%, so the validation number was not flattered by
+having been looked at. But the refusal behaviour is **worse** than validation suggested: zero
+refusals in 154 examples, against two on validation. That 4.3% recall was two cases rather than
+a capability, and the honest reading is that this model does not refuse. Seen and unseen objects
+come out identical on test (18.5% each, n=54), which is the clearest evidence that what it
+learned is the object's role and not the specific phrase. Full numbers in `reports/zeroshot.json`,
+`reports/finetuned.json`, `reports/zeroshot_test.json` and `reports/finetuned_test.json`.
 
 **Notebook.** [`notebooks/M1_macgyver.ipynb`](notebooks/M1_macgyver.ipynb) runs the whole
 pipeline on a free Colab T4: model/tokenizer load, dataset build, baseline, LoRA training, and

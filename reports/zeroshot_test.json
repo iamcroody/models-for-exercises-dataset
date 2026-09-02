@@ -1,0 +1,49 @@
+{
+  "n": 154,
+  "n_answerable": 108,
+  "n_refusable": 46,
+  "format_ok": 1.0,
+  "constraint_satisfaction": 0.0,
+  "exercise_real": 0.0,
+  "target_match": 0.0,
+  "equipment_match": 0.0,
+  "step_grounding_rouge_l": 0.2529,
+  "n_grounded": 1,
+  "refusal": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0
+  },
+  "seen_objects": {
+    "n": 54,
+    "constraint_satisfaction": 0.0
+  },
+  "unseen_objects": {
+    "n": 54,
+    "constraint_satisfaction": 0.0
+  },
+  "model": "Qwen/Qwen3-1.7B",
+  "adapter": null,
+  "split": "test",
+  "n_scored": 154,
+  "examples": [
+    {
+      "why_shown": "answerable",
+      "prompt": "I want to train my triceps but I have no gym equipment. All I have is two one-litre juice cartons.\nRecommend one safe exercise and explain how to do it.\n\nAnswer in exactly this format:\nExercise: <name>\nGym equivalent: <equipment>\nAdaptation: <how to use what I have>\nSteps:\n1. <step>\nSafety: <one line>\n\nIf nothing you know of trains that muscle with that object, say so instead of inventing one.",
+      "gold": "Exercise: dumbbell tricep kickback with stork stance\nGym equivalent: dumbbell\nAdaptation: Use two one-litre juice cartons in place of the dumbbells, one in each hand. Match the load on both sides so the movement stays symmetrical.\nSteps:\n1. Stand with your feet shoulder-width apart and hold a dumbbell in your right hand.\n2. Bend your knees slightly and hinge forward at the hips, keeping your back straight.\n3. Bring your right elbow up to your side, keeping it bent at a 90-degree angle.\n4. Extend your right arm straight back, squeezing your triceps.\n5. Pause for a moment, then slowly lower the dumbbell back to the starting position.\n6. Repeat for the desired number of repetitions, then switch sides.\nSafety: Keep the movement controlled and stop if you feel pain.",
+      "generated": "Exercise: Tricep Dips  \nGym equivalent: None (no gym equipment)  \nAdaptation: Use two one-litre juice cartons as a makeshift dip bar. Place them on a flat surface, such as a countertop or the floor, and position them slightly apart to create a dip bar-like surface.  \nSteps:  \n1. Hold the juice cartons with your hands wide apart, palms facing down.  \n2. Lower your arms slowly toward the ground, keeping your elbows close to your body.  \n3. Push your arms back up to the starting position.  \nSafety: Keep your elbows close to your body to avoid injury."
+    },
+    {
+      "why_shown": "refusal",
+      "prompt": "I want to train my abductors but I have no gym equipment. All I have is a duffel bag full of laundry.\nRecommend one safe exercise and explain how to do it.\n\nAnswer in exactly this format:\nExercise: <name>\nGym equivalent: <equipment>\nAdaptation: <how to use what I have>\nSteps:\n1. <step>\nSafety: <one line>\n\nIf nothing you know of trains that muscle with that object, say so instead of inventing one.",
+      "gold": "No safe option: I know no abductors exercise that works with a duffel bag full of laundry.\nClosest alternative: side bridge hip abduction, which needs body weight.",
+      "generated": "Exercise: Plank\nGym equivalent: None (no gym equipment)\nAdaptation: Use a duffel bag as a makeshift resistance band by holding it with both hands and pulling it toward your body.\nSteps:\n1. Get on your hands and knees with your forearms straight and your body straight.\n2. Lower your body toward the ground until your chest touches the ground.\n3. Push back up to the starting position.\nSafety: Avoid overextending your neck or back."
+    },
+    {
+      "why_shown": "unseen object",
+      "prompt": "I want to train my abductors but I have no gym equipment. All I have is a duffel bag full of laundry.\nRecommend one safe exercise and explain how to do it.\n\nAnswer in exactly this format:\nExercise: <name>\nGym equivalent: <equipment>\nAdaptation: <how to use what I have>\nSteps:\n1. <step>\nSafety: <one line>\n\nIf nothing you know of trains that muscle with that object, say so instead of inventing one.",
+      "gold": "No safe option: I know no abductors exercise that works with a duffel bag full of laundry.\nClosest alternative: side bridge hip abduction, which needs body weight.",
+      "generated": "Exercise: Plank\nGym equivalent: None (no gym equipment)\nAdaptation: Use a duffel bag as a makeshift resistance band by holding it with both hands and pulling it toward your body.\nSteps:\n1. Get on your hands and knees with your forearms straight and your body straight.\n2. Lower your body toward the ground until your chest touches the ground.\n3. Push back up to the starting position.\nSafety: Avoid overextending your neck or back."
+    }
+  ]
+}
