@@ -154,17 +154,18 @@ class Judge:
     """
 
     def __init__(self, model_id="Qwen/Qwen2.5-1.5B-Instruct", device=None, rubric=None):
-        import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 
         set_seed(SEED)
         self.rubric = rubric or load_rubric()
         self.model_id = model_id
         self.tok = AutoTokenizer.from_pretrained(model_id)
-        self.model = AutoModelForCausalLM.from_pretrained(model_id, dtype="auto")
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model = self.model.to(device).eval()
+        # Qwen2.5 declares bfloat16 and dtype="auto" would honour it on a T4,
+        # where bf16 is emulated in software and merely slow. pick_device_dtype
+        # asks the compute capability instead, which is the reason it exists.
+        picked_device, dtype = mg.pick_device_dtype()
+        self.model = AutoModelForCausalLM.from_pretrained(model_id, dtype=dtype)
+        self.model = self.model.to(device or picked_device).eval()
         self.unparsed = 0
 
     def _generate(self, user, max_new_tokens):
@@ -218,8 +219,15 @@ class Judge:
             "Better answer (A or B):"
         )
         text = self._generate(user, max_new_tokens=3).upper()
-        match = re.search(r"\b([AB])\b", text) or re.search(r"[AB]", text)
-        return match.group(1) if match else "?"
+        # One pattern, not two. The old fallback re.search(r"[AB]") had no
+        # capture group, so the group(1) beside it raised IndexError on the very
+        # outputs it was added for. It was also unsafe: scanning a whole sentence
+        # for a bare A or B answers "B" to "THE BETTER ONE IS A", picking the
+        # letter out of "BETTER". A word-bounded match already accepts every
+        # legitimate reply ("A", "B.", "**A**", "Answer: B"); anything else is
+        # genuinely unparseable and is reported as such.
+        match = re.search(r"\b[AB]\b", text)
+        return match.group() if match else "?"
 
     def compare_robust(self, question, x, y):
         """Position-bias mitigation: ask both ways, believe it only if it agrees.
