@@ -419,6 +419,10 @@ def harness(eval_set, system, judge=None, similarity=None, catalog=None,
     full_index = mg.build_name_index(mg.load_catalog())
     similarity = similarity or Similarity()
 
+    # Snapshot, because judge.unparsed accumulates across the bias probes too
+    # and the scorecard should report this run, not the session.
+    unparsed_before = judge.unparsed if judge else 0
+
     rows = []
     for i, example in enumerate(eval_set, start=1):
         reply = system(example["input"])
@@ -448,7 +452,8 @@ def harness(eval_set, system, judge=None, similarity=None, catalog=None,
     return summarise(rows, label=label,
                      judge_model=getattr(judge, "model_id", None),
                      rubric_version=(judge.rubric["version"] if judge else None),
-                     embedding_model=similarity.model_id)
+                     embedding_model=similarity.model_id,
+                     judge_unparsed=(judge.unparsed - unparsed_before) if judge else None)
 
 
 def _mean(values):
@@ -457,7 +462,7 @@ def _mean(values):
 
 
 def summarise(rows, label="system", judge_model=None, rubric_version=None,
-              embedding_model=None):
+              embedding_model=None, judge_unparsed=None):
     gold = [r for r in rows if not r["adversarial"]]
     adversarial = [r for r in rows if r["adversarial"]]
     seen = [r for r in gold if r["object_seen"]]
@@ -481,6 +486,10 @@ def summarise(rows, label="system", judge_model=None, rubric_version=None,
         "judge_mean": _mean([r["judge"] for r in rows]),
         "judge_mean_gold": _mean([r["judge"] for r in gold]),
         "judge_mean_adversarial": _mean([r["judge"] for r in adversarial]),
+        # How often the judge failed to emit a digit on this run. The parser
+        # returns None rather than a neutral 3, and that only means anything if
+        # the count travels with the scores it silently removed.
+        "judge_unparsed": judge_unparsed,
         # Dimension 3
         "domain_hits": sum(r["hit"] for r in rows),
         "domain_hit_rate": hit_rate(rows),
@@ -593,6 +602,7 @@ SCORECARD_ROWS = [
     ("dim2_judge_mean", "judge_mean", "2 · LLM judge, whole eval set (1-5)"),
     ("dim2_judge_mean_gold", "judge_mean_gold", "2 · LLM judge, answerable cases (1-5)"),
     ("dim2_judge_mean_adversarial", "judge_mean_adversarial", "2 · LLM judge, adversarial cases (1-5)"),
+    ("dim2_judge_unparsed", "judge_unparsed", "2 · judge outputs with no digit (excluded from the means)"),
     ("dim3_domain_hit_rate", "domain_hit_rate", "3 · domain criterion met, whole eval set"),
     ("dim3_domain_hit_rate_gold", "domain_hit_rate_gold", "3 · domain criterion met, answerable cases"),
     ("dim3_domain_hit_rate_adversarial", "domain_hit_rate_adversarial", "3 · domain criterion met, adversarial cases"),
