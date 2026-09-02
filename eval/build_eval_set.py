@@ -20,32 +20,16 @@ Run:
     uv run python eval/build_eval_set.py        # writes eval/eval_set.json
 """
 
-import importlib.util
 import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "eval"))
 
 import macgyver as mg  # noqa: E402
-
-
-def _load_data_script():
-    """Import 01_macgyver_data.py, whose name a plain import cannot spell.
-
-    We want its `needs_apparatus` and nothing else. Copying the regex here
-    instead would let the eval set and the training data disagree about what
-    counts as reachable the first time either one is edited.
-    """
-    path = ROOT / "scripts" / "01_macgyver_data.py"
-    spec = importlib.util.spec_from_file_location("macgyver_data", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-DATA = _load_data_script()
+from harness import reachable_catalog  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "eval_set.json"
 
@@ -186,15 +170,6 @@ ADVERSARIAL = [
 ]
 
 
-def reachable(catalog_rows):
-    """Catalog minus the exercises whose steps need kit we cannot improvise.
-
-    Same filter the training data uses. Without it a reference answer can end
-    up telling someone with two water bottles to lie on a bench.
-    """
-    return [r for r in catalog_rows if not DATA.needs_apparatus(r)]
-
-
 def pick_gold(rows, target, equipment):
     """The lowest-id reachable exercise with that target and equipment class.
 
@@ -210,7 +185,7 @@ def pick_gold(rows, target, equipment):
 
 
 def main():
-    catalog = reachable(mg.load_catalog())
+    catalog = reachable_catalog()
     train_pairs = {(r["target"], r["object"]) for r in mg.load_split("train")}
 
     eval_set = []

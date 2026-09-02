@@ -38,6 +38,8 @@ Bias handling lives in `PositionBiasProbe` and `length_bias_probe` — see the
 README section on judge bias.
 """
 
+import functools
+import importlib.util
 import json
 import re
 import sys
@@ -65,6 +67,36 @@ MAX_ANSWER_CHARS = 1400
 # --------------------------------------------------------------------------
 # Loading
 # --------------------------------------------------------------------------
+
+@functools.lru_cache(maxsize=1)
+def _data_script():
+    """Import 01_macgyver_data.py, whose name a plain import cannot spell.
+
+    We want its `needs_apparatus` and nothing else. Copying the rule here would
+    let the eval set, the training data and the scorer disagree about what
+    counts as reachable the first time any one of them is edited.
+    """
+    path = ROOT / "scripts" / "01_macgyver_data.py"
+    spec = importlib.util.spec_from_file_location("macgyver_data", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def reachable_catalog(catalog=None):
+    """The catalog minus exercises whose steps need kit we cannot improvise.
+
+    1324 rows become 407. This is the same filter the training data and the
+    eval set are built with, and dimension 3 has to grade with it too: the full
+    catalog holds 80 dumbbell exercises for `biceps` against 29 reachable ones,
+    and the 51 others need a bench or a rack. Scoring against those would count
+    "do a preacher curl" as a hit for someone holding two bricks, which is the
+    opposite of what dimension 3 claims to measure.
+    """
+    needs_apparatus = _data_script().needs_apparatus
+    rows = mg.load_catalog() if catalog is None else catalog
+    return [r for r in rows if not needs_apparatus(r)]
+
 
 def load_eval_set(path=EVAL_SET_PATH):
     examples = json.loads(Path(path).read_text())
@@ -262,7 +294,7 @@ _CORRECTS_PREMISE = re.compile(
     r"is one muscle|cannot (?:be )?(?:target|isolat)|there is no|no separate)\b", re.I)
 
 
-def domain_check(example, reply, catalog_index):
+def domain_check(example, reply, catalog_index, full_index=None):
     """Does this reply satisfy the domain criterion for this example?
 
     One rule per kind of example, all of them explicit and versioned here rather
@@ -288,7 +320,7 @@ def domain_check(example, reply, catalog_index):
     if kind == "answerable":
         hit = (detail["format_ok"] and not parsed["refused"] and detail["exercise_real"]
                and detail["target_match"] and detail["equipment_match"])
-        detail["why"] = "" if hit else _first_failure(detail, parsed)
+        detail["why"] = "" if hit else _first_failure(detail, parsed, full_index)
 
     elif kind == "must_refuse":
         # Refusing is the whole job. Naming a real exercise instead is exactly
@@ -321,12 +353,19 @@ def domain_check(example, reply, catalog_index):
     return detail
 
 
-def _first_failure(detail, parsed):
+def _first_failure(detail, parsed, full_index=None):
     if not detail["format_ok"]:
         return "reply did not parse into the required format"
     if parsed["refused"]:
         return "refused an answerable case"
     if not detail["exercise_real"]:
+        # Separating the two is worth a lookup: "invented a name" and "picked a
+        # real exercise that needs a bench" are different failures, and only the
+        # first one is a hallucination. The honest reading depends on the
+        # difference.
+        name = mg.normalise_name(parsed["exercise"]) if parsed["exercise"] else None
+        if full_index is not None and name in full_index:
+            return "named a real exercise that needs equipment we cannot improvise"
         return "named an exercise that is not in the catalog"
     if not detail["target_match"]:
         return "the exercise trains a different muscle"
@@ -347,8 +386,11 @@ def harness(eval_set, system, judge=None, similarity=None, catalog=None,
     string. Nothing else about it is assumed — no tokenizer, no model, no
     framework — which is what lets M3's retrieval pipeline drop straight in.
     """
-    catalog = catalog if catalog is not None else mg.load_catalog()
+    catalog = catalog if catalog is not None else reachable_catalog()
     index = mg.build_name_index(catalog)
+    # Grading uses the reachable index; the full one is only consulted to
+    # explain a miss, so a real-but-unreachable pick is not filed as invention.
+    full_index = mg.build_name_index(mg.load_catalog())
     similarity = similarity or Similarity()
 
     rows = []
@@ -357,7 +399,7 @@ def harness(eval_set, system, judge=None, similarity=None, catalog=None,
         sim = similarity(reply, example["expected"])
         rouge = step_grounding(reply, index)
         judged = judge.score(example["input"], reply, example["expected"]) if judge else None
-        domain = domain_check(example, reply, index)
+        domain = domain_check(example, reply, index, full_index)
 
         rows.append({
             "id": example["id"],
