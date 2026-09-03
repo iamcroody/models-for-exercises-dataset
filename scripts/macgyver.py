@@ -31,7 +31,7 @@ SEED = 42
 #
 # `holdout` objects never appear in training. They exist to answer one
 # question with a number instead of a hope: does the model generalise to
-# objects it has never been shown, or has it memorised nine phrases?
+# objects it has never been shown, or has it memorised thirteen phrases?
 OBJECT_MAP = {
     "dumbbell": {
         "seen": [
@@ -180,8 +180,29 @@ _THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
 _FIELD = re.compile(r"^\s*(exercise|gym equivalent|adaptation|safety)\s*:\s*(.*)$",
                     re.IGNORECASE)
 _STEP = re.compile(r"^\s*(\d+)[.)]\s+(.*)$")
-_REFUSAL = re.compile(r"no safe option|i know no |there is no .* exercise",
-                      re.IGNORECASE)
+# A refusal in any system's wording, not just ours. The first three
+# alternatives are how M1's training completions phrase it; on their own they
+# score "I can't recommend that: a curtain rail will not hold body weight" as a
+# confident answer, which would punish M3's retrieval system for declining in
+# words of its own. The additions stay narrow on purpose — a bare "no" or "not"
+# is ordinary gym prose, and every alternative here needs a declining verb or
+# an explicit "no safe/exercise" object beside it.
+_REFUSAL = re.compile(
+    r"no safe option"
+    r"|i know no "
+    r"|there is no .* exercise"
+    r"|\bi (?:can(?:'|’)?t|cannot|can not|won(?:'|’)?t|will not|"
+    r"am not going to)\s+(?:safely\s+)?"
+    r"(?:recommend|suggest|advise|propose|endorse)"
+    r"|\bnot safe to\b"
+    r"|\bnothing\b[^.\n]{0,40}\b(?:fits|works|is suitable|would be safe)\b",
+    re.IGNORECASE)
+
+# How far into a reply a refusal phrase still means the reply *is* a refusal.
+# Past that it is an aside inside an answer — "There is no better forearm
+# exercise for this object" used to turn a perfect reply into a refusal and
+# throw away its exercise, its steps and its grounding score.
+_REFUSAL_HEAD = 200
 _PUNCT = re.compile(r"[^a-z0-9 ]+")
 
 
@@ -204,9 +225,6 @@ def parse_reply(text):
                 "adaptation": None, "safety": None, "steps": [], "parsed": False}
 
     text = _THINK.sub("", text).strip()
-    if _REFUSAL.search(text):
-        return {"refused": True, "exercise": None, "equipment": None,
-                "adaptation": None, "safety": None, "steps": [], "parsed": True}
 
     out = {"refused": False, "exercise": None, "equipment": None,
            "adaptation": None, "safety": None, "steps": []}
@@ -221,6 +239,15 @@ def parse_reply(text):
             out["steps"].append(step.group(2).strip())
 
     out["parsed"] = bool(out["exercise"] and out["steps"])
+
+    # Refusal is decided after the fields, not before them: the phrase has to be
+    # the answer rather than a remark inside one. Up front, or in a reply that
+    # never names an exercise, it is a refusal; further down, next to an
+    # `Exercise:` line, it is an aside and the answer stands.
+    refusal = _REFUSAL.search(text)
+    if refusal and (refusal.start() < _REFUSAL_HEAD or not out["exercise"]):
+        return {"refused": True, "exercise": None, "equipment": None,
+                "adaptation": None, "safety": None, "steps": [], "parsed": True}
     return out
 
 
