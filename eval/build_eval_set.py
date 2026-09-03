@@ -1,8 +1,9 @@
 """Build the M2 evaluation set from the catalog.
 
-The twelve (target, object) pairs below were chosen by hand: they are the
-questions we actually want this system to get right, plus the four ways we
-expect it to fail. What is *not* hand-written is the reference answer. Gold
+The thirteen (target, object) pairs below were chosen by hand: they are the
+questions we actually want this system to get right, plus three of the four
+ways we expect it to fail — the fourth, the out-of-domain rider, is a prompt
+rather than a pair. What is *not* hand-written is the reference answer. Gold
 exercise names, equipment classes and instruction steps come verbatim out of
 `data/exercises-dataset`, exactly as `scripts/01_macgyver_data.py` builds the
 training completions, so a reference answer can never quietly drift from what
@@ -33,11 +34,12 @@ from harness import reachable_catalog  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "eval_set.json"
 
-# --- The eight answerable cases -------------------------------------------
+# --- The ten answerable cases ---------------------------------------------
 #
-# Four use objects the model saw in training, four use held-out objects, so
+# Five use objects the model saw in training, five use held-out objects, so
 # the scorecard can tell "cannot do the task" apart from "cannot generalise
-# past the nine phrases it memorised". None of the pairs is in train.py.
+# past the thirteen phrases it memorised". None of the pairs is in the
+# training split.
 ANSWERABLE = [
     ("forearms", "two filled water bottles",
      "names a real forearm exercise that uses a matched pair of weights, one per hand"),
@@ -66,7 +68,7 @@ ANSWERABLE = [
 
 # --- The four adversarial / edge cases -------------------------------------
 #
-# 33% of the set. Each one has a different failure in mind, and in every one
+# 29% of the set. Each one has a different failure in mind, and in every one
 # the correct answer is some form of "no" — which is precisely what M1
 # reported the fine-tuned model almost never does (refusal recall 4.3%).
 ADVERSARIAL = [

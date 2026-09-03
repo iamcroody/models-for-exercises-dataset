@@ -1,3 +1,11 @@
+**In plain words.** We ask the system: "I want to train this muscle and all I
+have is this thing from my house." A good answer names an exercise that really
+exists in our catalog, trains that muscle, can actually be done with that
+object, and recites that exercise's real steps — or says honestly that nothing
+fits, instead of inventing something. The evaluation harness in this repo
+measures how often that happens, in three different ways, so a bad answer that
+*sounds* good cannot slip through.
+
 # models-for-exercises-dataset
 
 This project fine-tunes a small language model to recommend a real exercise you can do with a
@@ -58,12 +66,9 @@ qualitative examples.
 
 ## M2 - Evaluation harness (SI4006)
 
-**In plain words.** We ask the system: "I want to train this muscle and all I have
-is this thing from my house." A good answer names an exercise that really exists
-in our catalog, trains that muscle, can actually be done with that object, and
-recites that exercise's real steps — or says honestly that nothing fits, instead
-of inventing something. This harness measures how often that happens, in three
-different ways, so a bad answer that *sounds* good cannot slip through.
+**Task.** Take the standard at the top of this file and make it measurable:
+three dimensions over a fourteen-case eval set, one of which resolves every
+answer against the catalog instead of reading it.
 
 ### What is in the repo
 
@@ -71,7 +76,7 @@ different ways, so a bad answer that *sounds* good cannot slip through.
 |---|---|
 | `eval/eval_set.json` | 14 evaluation examples, 4 of them adversarial (29%) |
 | `eval/build_eval_set.py` | rebuilds the eval set from the catalog; refuses to write a contaminated or unanswerable example |
-| `eval/rubric.md` | the judge rubric, **v1.0**, versioned and read at runtime |
+| `eval/rubric.md` | the judge rubric, versioned and read at runtime; the version in force is the one the scorecard records |
 | `eval/harness.py` | the three dimensions and `harness(eval_set, system)`; `python eval/harness.py` runs a self-test with no model weights |
 | `notebooks/M2_harness.ipynb` | runs everything end to end on a free Colab T4 |
 | `reports/scorecard_baseline.csv` | the scorecard |
@@ -98,10 +103,22 @@ exercise name, equipment class and instruction steps verbatim from
 none of them appears in the M1 training split — an eval set the model was
 fine-tuned on measures memorisation, not skill.
 
+That guarantee is about pairs, and it is worth saying how far it reaches. No
+exact (muscle, object) pair in the set was trained on, and the build fails
+loudly if one ever is. The exercises are a different matter: nine of the ten
+gold exercises do appear in training, the same catalog entry with its steps,
+behind a different object. `gold05` is the
+sharpest case — training saw (biceps, "two full cans of food") and the eval asks
+(biceps, "two bricks"), the same muscle, the same equipment class and the same
+gold exercise behind both. The defensible claim is that no pair was fine-tuned
+on, not that the exercise is new to the model. Dimension 3 grades against every
+reachable catalog entry rather than against the gold one, so recall is not the
+only route to a hit, but a reader is entitled to know the route is open.
+
 Five of the ten answerable cases use objects the model saw in training and five
 use held-out objects, and those are the two columns the scorecard's seen and
 held-out rows report, so it can tell "cannot do the task" apart from "cannot
-generalise past nine memorised phrases". All four equipment classes appear.
+generalise past thirteen memorised phrases". All four equipment classes appear.
 Two adversarial cases have no mapped object at all, since a curtain rail is
 neither seen nor held out, so their `object_seen` is `null` and they stay out of
 both columns rather than being miscounted as held-out.
@@ -131,10 +148,10 @@ dozens of valid exercises, so a threshold would fail correct answers and pass
 fluent inventions. The catalog is the only thing in the loop that knows what is
 real.
 
-### Judge rubric (v1.0)
+### Judge rubric
 
-Full text with the anchors and the rules in [`eval/rubric.md`](eval/rubric.md).
-Summary:
+Full text with the anchors and the rules in [`eval/rubric.md`](eval/rubric.md),
+which carries the version in force. Summary:
 
 | Score | What earns it |
 |---|---|
@@ -164,23 +181,30 @@ which is the honest description of what a 1.5B judge can tell us.
 **Length bias.** `length_bias_probe` scores each reply, then scores it again
 padded with content-free filler ("consistency beats intensity", "stay hydrated").
 Same content, more words. **Measured mean delta: +0.357**, and the same +0.357
-with the length cap applied, so `MAX_ANSWER_CHARS = 1400` mitigated nothing
-here: the padded answers that exceed the cap were already scoring 5, and the
-ones with room to rise are short enough that the cap never touches them. We are
-reporting that rather than claiming the mitigation we shipped.
+with the length cap applied, so `MAX_ANSWER_CHARS = 1400` mitigated nothing. The
+reason is where the filler sits. `PADDING` goes in *front* of the reply, so its
+208 characters are inside the cap in every case and the judge reads them whether
+the cap is on or off, while truncation takes the end of the string. And it takes
+anything at all exactly once: `adv03` is the only padded answer that exceeds
+1400 characters, at 2395, and the other thirteen land between 988 and 1301,
+where the cap never reaches them. On `adv03` the cap removed the trailing filler
+and the tail of the answer, left the preamble untouched, and the score stayed at
+5. We are reporting that rather than claiming the mitigation we shipped.
 
 The mean understates the effect badly, and the reason is worth stating. Twelve
 of the fourteen plain answers already scored 5, so they had no headroom. Of the
-two that did, both rose, and `adv03` went from **1 to 5** on filler alone. That
-case is an out-of-domain request the model was right to be marked down on, and
-420 characters of "consistency beats intensity" turned the judge's harshest
-score into its highest. The rubric says in as many words that length is not
-quality. The judge does not obey it.
+two that did, both rose, and `adv03` went from **1 to 5** on filler alone —
+which makes it the one answer the cap could have reached, and the cap did not
+save it. That case is an out-of-domain request the model was right to be marked
+down on, and 422 characters of "consistency beats intensity" turned the judge's
+harshest score into its highest. The rubric says in as many words that length is
+not quality. The judge does not obey it.
 
 ### The scorecard
 
-14 examples, seed 42, greedy decoding, rubric v1.0, judge
-`Qwen/Qwen2.5-1.5B-Instruct`, embeddings `paraphrase-multilingual-MiniLM-L12-v2`.
+14 examples, seed 42, greedy decoding, the rubric version the CSV records,
+judge `Qwen/Qwen2.5-1.5B-Instruct`, embeddings
+`paraphrase-multilingual-MiniLM-L12-v2`, on an RTX 5060 Ti in bf16.
 Full file: `reports/scorecard_baseline.csv`, per-example detail and both bias
 probes in `reports/scorecard_baseline_detail.json`.
 
@@ -232,8 +256,9 @@ written like the reference.
 **What the fine-tuning did buy.** Dimension 3 moves from 0.0% to 21.4% overall
 and 30.0% on the answerable cases, and where the model does name a real exercise
 it recites that exercise's real steps reasonably faithfully (ROUGE-L 0.554,
-n=6). That is the honest size of the M1 result on a set none of whose pairs it
-was trained on.
+n=6). That is the honest size of the M1 result on a set none of whose exact
+pairs it was trained on, with the caveat recorded above: nine of the ten gold
+exercises do appear in training behind a different object.
 
 **Two failures the fine-tuning did not touch.** The adversarial block is
 **0 of 4 for both systems**. Neither refuses the impossible pair, corrects the
@@ -243,19 +268,85 @@ and this is the same weakness with a sharper edge on it: on `adv04` the failure
 mode is telling a real person to hang from a curtain rail.
 
 The other is the seen against held-out row, which came out **0.0% seen and
-60.0% held out**. That is backwards from a memorisation story, and we are not
-going to over-read it: five examples a side means one case is worth 20 points,
-so this is noise around a real inability rather than evidence that the model
-generalises better than it recalls. What it does rule out is the comfortable
-explanation that the 21.4% comes from memorised phrases.
+60.0% held out**. We first read that as noise — five examples a side means one
+case is worth 20 points — and then counted what each side was actually asking
+for. The two arms are not the same difficulty. A seen-object case has a median
+of **2** valid answers in the reachable catalog against **15** for a held-out
+case; two of the seen cases have exactly one valid answer each, while `gold07`
+(abs, a bare hallway) has 63. The 0% against 60% is that gap, not memorisation
+running backwards.
 
-**The judge is a dimension, not an oracle, and we now have the numbers to say
-so.** Its pairwise verdict flips on 50.0% of pairs, so half of what it tells us
-comes from seating. Padding a reply with content-free filler moved `adv03` from
-1 to 5. A 1.5B model grading a 1.7B model is a weak grader by construction, and
-the point of the module is the method rather than the size of the judge, but a
-reader should discount dimension 2 accordingly. Dimension 3 does not depend on
-any model's opinion, and it is the number we will defend improvements against.
+It is not repairable by picking better cases either, because training already
+consumed the wide ones. Among the (muscle, object) pairs still clean of the
+training split, the seen objects have a median of 1 reachable exercise and a
+maximum of 5, while the held-out objects have a median of 3 and a maximum of 63.
+Any uncontaminated eval set built from this catalog inherits that asymmetry, so
+the row is a difficulty contrast rather than a generalisation result. What it
+does still rule out is the comfortable explanation that the 21.4% comes from
+memorised phrases.
+
+**The judge is a dimension, not an oracle, and we can now put a number on how
+weak.** We scored it against dimension 3 as the label, since dimension 3
+resolves the answer against the catalog and so holds no opinion that could
+itself be wrong. Over the 28 replies already graded, 3 domain hits against 25
+misses, the judge means 5.00 on the hits and 4.84 on the misses: a gap of 0.16,
+a point-biserial correlation of 0.067, and **AUC 0.520**, where 0.500 is no
+information at all.
+Read "4 or more" as the judge's own verdict and it agrees with the catalog on
+**0.143** of the set — 3 true positives, 24 false positives, 1 true negative.
+Its pairwise verdict flips on 50.0% of pairs on top of that.
+
+**What it is doing instead of judging.** A ceiling probe says it plainly. We
+scored every reference answer and a deliberately corrupted copy of it, the
+exercise renamed to "Mega Brick Curl 3000" and the adaptation replaced with
+wedging the object under a door and hanging off it with your whole weight. With
+the reference in the prompt the judge separates the two almost perfectly: **AUC
+0.929**, a gap of 3.286, every corrupted answer scored 1. Remove the reference
+and the same comparison collapses to **AUC 0.536**. The judge is not evaluating
+the answer, it is comparing it against the reference sitting beside it. That
+carries a corollary we would rather write down than have someone else find: the
+notebook's synthetic check, where garbage scores 1 and the gold answer scores 5,
+passes for exactly that reason and proves less than it appeared to.
+
+**It fails confidently, not randomly.** Reading the logits over the tokens "1"
+to "5", the mass on those five tokens runs from 0.985 to 0.9998, so these are
+not undecided outputs being rounded into a digit. On `adv04`, the answer that
+tells the reader to hang from a curtain rail, the judge puts **p(5) = 0.983**.
+Add one explicit line to the prompt — that this answer recommends hanging from a
+curtain rail, and that the rubric caps anything which could injure the user at 1
+— and the same model answers **1 with p = 0.76**. Asked flatly whether someone
+could get hurt following the answer to the letter, it answers "Yes". The
+knowledge is in the model. What it cannot do is carry that knowledge through a
+five-anchor rubric into a single digit.
+
+**Two repairs we measured and rejected.** Instructing the judge per case kind,
+spelling out what an adversarial case requires, lifts AUC from 0.520 to 0.580.
+We then ran it over four correct refusals written by hand, and three went from
+5, 5, 5 to 1, 1, 1: the instruction does not teach the judge to discriminate, it
+teaches it to punish the category, and it would score 1 on precisely the honest
+refusals the retrieval system in M3 is meant to produce. The second repair,
+decomposing the rubric into six yes/no questions read off the logits, reaches
+**AUC 0.780** and is the only variant that orders the two systems the way
+dimension 3 does — but all of the gain comes from one probe sitting at p≈0.5. It
+contradicts itself on **32.1%** of rows when the same question is put to it
+negated, content-free filler moves its scores by **+1.786** where the same
+filler moves the digit judge by +0.000, and raising its threshold drops AUC to
+0.660 with both systems tied at 4.071. A measurement that fragile is not a fix.
+A 1.5B model grading a 1.7B model is a weak grader by construction, and the
+point of the module is the method rather than the size of the judge, but a
+reader should discount dimension 2 accordingly.
+
+**Dimension 3 held still while the answers were rewritten.** Regenerating all
+fourteen LoRA replies from the committed adapter on different hardware produced
+four byte-identical answers and ten that diverge mid-sentence into different
+wording. Dimension 3 did not move: domain hit rate **0.2143 against 0.2143**
+overall, 0.3 against 0.3 on the answerable cases, 0.6 against 0.6 held out, six
+grounded answers against six. Dimension 1, on the same replies, moved from 0.786
+to 0.7875. The harness docstring calls dimension 3 "the one dimension that
+cannot be fooled by fluent prose"; ten of fourteen answers rewording themselves
+without moving it is that claim demonstrated on our own data rather than
+asserted. It does not depend on any model's opinion, and it is the number we
+will defend improvements against.
 
 **What M3 has to fix, and why we think retrieval is the fix.** The failure is
 not fluency, it is grounding: the model invents exercise names because nothing
@@ -266,7 +357,7 @@ list", which should move dimension 3 first and the ROUGE column with it. Refusal
 is the second target, and the harder one: if retrieval returns nothing for
 (lats, dumbbell), the honest answer becomes available without the model having
 to know it is absent. Both get defended against this exact scorecard, same eval
-set, same rubric version, same seed.
+set, same rubric version, same seed, same GPU and dtype.
 
 ### Reproducing this
 
@@ -285,10 +376,29 @@ uv run python eval/build_eval_set.py   # rewrites eval/eval_set.json byte-identi
 
 The full scorecard needs a GPU: open
 [`notebooks/M2_harness.ipynb`](notebooks/M2_harness.ipynb) in Colab, pick a T4
-runtime, and run every cell in order. Seeds are fixed (42), decoding is greedy,
-and the judge model, embedding model and rubric version are written into the CSV
-alongside the scores, so a rerun that disagrees is telling you something real
-rather than sampling noise.
+runtime, and run every cell in order. The committed CSV was not produced there.
+It came from a local run on an RTX 5060 Ti, and the commit that added it says
+so, which matters because `pick_device_dtype()` reads the GPU's compute
+capability to choose a dtype: bf16 on that card, fp16 on a T4.
+
+Greedy decoding removes sampling noise, not numerical noise. bf16 carries 7 bits
+of mantissa against fp16's 10, so the two runs round differently, and where two
+tokens sit within that rounding of each other the argmax falls on opposite sides
+and the rest of the answer follows it somewhere else. `set_seed(42)` does not
+save you here: with `do_sample=False` the decoding draws from the RNG at no
+point, so the determinism rests entirely on bit-identical logits, which is a
+property of the hardware rather than of the seed. Measured across the two
+environments, dimension 3 comes out identical (0.2143 / 0.3 / 0.6, six grounded
+answers), dimension 1 moves in the fourth decimal, and 1 of 28 judge scores
+changes: `gold09-pectorals` scores 4 in bf16 and 5 in fp16, on p(4) = 0.348
+against p(5) = 0.394, a near-tie that the rounding decides.
+
+So compare like with like. The scorecard records the seed, the judge model, the
+embedding model, the rubric version, the torch and transformers versions and the
+device the run used, and the dtype follows from the device; for the committed
+run that was an RTX 5060 Ti and bf16. A rerun that disagrees on dimension 3 is
+telling you something real. A rerun that disagrees on one judge score may only
+be telling you it ran on a different card.
 
 ## Requirements
 

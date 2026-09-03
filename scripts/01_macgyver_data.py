@@ -10,7 +10,7 @@ What is real and what is ours, exactly:
 
   real, verbatim from the catalog   exercise name, equipment, target, every
                                     instruction step
-  ours, deterministic               the object equivalences (20 phrases), four
+  ours, deterministic               the object equivalences (21 phrases), four
                                     adaptation sentences, the prompt wording,
                                     the safety line, the refusal wording
   written by an LLM                 nothing
@@ -65,14 +65,14 @@ PLATFORM_ROLE = re.compile(
 # The equipment label only records the *primary* implement, so "exercise ball
 # supine triceps extension" is filed under `dumbbell` while step 1 asks for an
 # exercise ball, and `body weight` means "no external load" rather than "no
-# equipment" — 111 of its 325 records still want a pull-up bar or a bench.
+# equipment" — 115 of its 325 records still want a pull-up bar or a bench.
 #
 # The rule this enforces: the answer must need nothing beyond the object the
 # user said they had. Telling someone holding two bricks to lie on a bench is
 # not adaptation, and in a domain where the failure mode is injury, a
 # confidently wrong answer is worse than a refusal.
 #
-# It costs 329 of 696 mapped exercises. Found by reading generated samples,
+# It costs 338 of 696 mapped exercises. Found by reading generated samples,
 # three separate times — the schema gives no hint that any of this is wrong.
 APPARATUS = re.compile(
     r"\b(?:pull-?up bar|chin-?up bar|dip bar|parallel bars|horizontal bar|"
